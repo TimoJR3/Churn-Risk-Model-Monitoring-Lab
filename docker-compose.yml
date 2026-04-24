@@ -1,0 +1,41 @@
+services:
+  api:
+    build:
+      context: .
+    container_name: churn_lab_api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+  dashboard:
+    build:
+      context: .
+    container_name: churn_lab_dashboard
+    env_file:
+      - .env
+    command: >
+      streamlit run dashboard/app.py
+      --server.address 0.0.0.0
+      --server.port 8501
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
+  postgres:
+    image: postgres:16
+    container_name: churn_lab_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-churn_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-churn_password}
+      POSTGRES_DB: ${POSTGRES_DB:-churn_lab}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
