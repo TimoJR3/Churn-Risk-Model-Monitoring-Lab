@@ -36,6 +36,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./app/db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+      - ./app/db/seed_monitoring.sql:/docker-entrypoint-initdb.d/002_seed.sql:ro
 
 volumes:
   postgres_data:
