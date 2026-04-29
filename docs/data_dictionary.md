@@ -104,3 +104,28 @@ imputation, validation и обработку неполных пользоват
 - `feature_name`;
 - `drift_score`;
 - `drift_detected`.
+
+## Engineered Features
+
+Эти признаки создаются на этапе preprocessing и сохраняются в processed
+train/validation datasets.
+
+| Поле | Тип | Описание |
+| --- | --- | --- |
+| `activity_score` | float | Композитный скор активности на основе активных дней, сессий и usage score. |
+| `payment_risk_score` | float | Нормализованный риск проблем с оплатой на основе failed payments. |
+| `engagement_level` | string | Категория вовлеченности: `low`, `medium`, `high`. |
+| `days_since_signup` | integer | Сколько дней прошло с даты регистрации до snapshot date. |
+| `usage_per_session` | float | Сколько usage score приходится на одну сессию. |
+| `support_intensity` | float | Доля обращений в поддержку относительно числа сессий. |
+
+Почему эти признаки могут помогать модели:
+
+- `activity_score` сжимает несколько сигналов активности в один понятный
+  индикатор вовлеченности.
+- `payment_risk_score` отражает friction в подписке: проблемы с оплатой
+  часто предшествуют churn.
+- `engagement_level` дает модели простой категориальный сегмент клиента.
+- `days_since_signup` помогает отличать новых пользователей от зрелых.
+- `usage_per_session` показывает глубину использования продукта.
+- `support_intensity` может отражать недовольство или сложности с сервисом.

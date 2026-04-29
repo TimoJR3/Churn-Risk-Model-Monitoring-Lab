@@ -10,6 +10,7 @@ venv/
 
 artifacts/*
 !artifacts/.gitkeep
+!artifacts/preprocessor.joblib
 data/raw/*
 !data/raw/.gitkeep
 !data/raw/synthetic_churn_dataset.csv
@@ -17,5 +18,7 @@ data/processed/*
 !data/processed/.gitkeep
 !data/processed/users.csv
 !data/processed/user_features.csv
+!data/processed/train_processed.csv
+!data/processed/validation_processed.csv
 
 .DS_Store

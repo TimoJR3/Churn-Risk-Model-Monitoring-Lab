@@ -139,13 +139,14 @@ docs             - документация проекта
 Следующие этапы:
 
 1. Добавить synthetic dataset, data model и seed-данные. `Done`
-2. Сделать EDA и baseline churn-модель.
-3. Добавить training pipeline и сохранение model artifact.
-4. Реализовать prediction endpoint.
-5. Сохранять prediction logs в PostgreSQL.
-6. Добавить model quality checks и drift monitoring.
-7. Расширить Streamlit dashboard метриками модели.
-8. Добавить GitHub Actions для тестов.
+2. Сделать EDA, preprocessing и feature engineering. `Done`
+3. Обучить baseline churn-модель.
+4. Добавить training pipeline и сохранение model artifact.
+5. Реализовать prediction endpoint.
+6. Сохранять prediction logs в PostgreSQL.
+7. Добавить model quality checks и drift monitoring.
+8. Расширить Streamlit dashboard метриками модели.
+9. Добавить GitHub Actions для тестов.
 
 ## Генерация synthetic data
 
@@ -166,3 +167,23 @@ python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
 ```powershell
 python -m app.db.load_seed_data
 ```
+
+## EDA и подготовка данных
+
+Сгенерировать markdown EDA-отчет:
+
+```powershell
+python -m app.ml.eda --source csv
+```
+
+Подготовить train и validation datasets:
+
+```powershell
+python -m app.ml.preprocessing --source csv --test-size 0.2
+```
+
+Команда создает:
+
+- `data/processed/train_processed.csv`;
+- `data/processed/validation_processed.csv`;
+- `artifacts/preprocessor.joblib`.
