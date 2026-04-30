@@ -11,6 +11,10 @@ venv/
 artifacts/*
 !artifacts/.gitkeep
 !artifacts/preprocessor.joblib
+!artifacts/trained_model.pkl
+!artifacts/preprocessor.pkl
+!artifacts/metrics.json
+!artifacts/feature_importance.csv
 data/raw/*
 !data/raw/.gitkeep
 !data/raw/synthetic_churn_dataset.csv
