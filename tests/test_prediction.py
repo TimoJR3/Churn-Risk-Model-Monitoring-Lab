@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import numpy as np
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
 
 from app.api.routers import prediction as prediction_router
+from app.db import prediction_logs
 from app.ml import inference
+from app.schemas.prediction import PredictionRequest, PredictionResponse
 
 
 def sample_payload() -> dict[str, object]:
     return {
+        "user_id": 1001,
         "signup_date": "2025-09-01",
         "country": "US",
         "plan_type": "standard",
@@ -45,6 +49,21 @@ def test_predict_endpoint_returns_prediction_with_fake_artifacts(
         def predict_proba(self, data):
             return np.array([[0.42, 0.58]])
 
+    saved_logs = []
+
+    def fake_save_prediction_log(
+        request: PredictionRequest,
+        response: PredictionResponse,
+        model_version: str | None,
+    ) -> None:
+        saved_logs.append(
+            {
+                "request": request,
+                "response": response,
+                "model_version": model_version,
+            }
+        )
+
     monkeypatch.setattr(
         inference,
         "load_prediction_artifacts",
@@ -55,6 +74,11 @@ def test_predict_endpoint_returns_prediction_with_fake_artifacts(
             model_version="fake_model",
         ),
     )
+    monkeypatch.setattr(
+        prediction_router,
+        "save_prediction_log",
+        fake_save_prediction_log,
+    )
 
     response = client.post("/predict", json=sample_payload())
     payload = response.json()
@@ -64,8 +88,11 @@ def test_predict_endpoint_returns_prediction_with_fake_artifacts(
     assert payload["churn_prediction"] == 1
     assert payload["risk_band"] == "medium"
     assert payload["threshold"] == 0.5
+    assert payload["model_version"] == "fake_model"
     assert payload["model_artifact_name"] == "trained_model.pkl"
     assert payload["explanation"]
+    assert len(saved_logs) == 1
+    assert saved_logs[0]["model_version"] == "fake_model"
 
 
 def test_predict_endpoint_rejects_empty_payload(client: TestClient) -> None:
@@ -119,6 +146,90 @@ def test_predict_endpoint_returns_503_for_missing_artifacts(
     assert response.status_code == 503
     assert payload["detail"]["error"] == "model_artifacts_unavailable"
     assert "traceback" not in str(payload).lower()
+
+
+def test_hash_user_id_is_deterministic() -> None:
+    first = prediction_logs.hash_user_id(1001)
+    second = prediction_logs.hash_user_id("1001")
+
+    assert first == second
+    assert first != "1001"
+
+
+def test_save_prediction_log_inserts_row_with_sanitized_features() -> None:
+    engine = create_engine("sqlite:///:memory:")
+    prediction_logs.metadata.create_all(engine)
+
+    request = PredictionRequest.model_validate(sample_payload())
+    response = PredictionResponse(
+        churn_probability=0.58,
+        churn_prediction=1,
+        risk_band="medium",
+        threshold=0.5,
+        model_version="fake_model",
+        model_artifact_name="trained_model.pkl",
+        explanation="test",
+    )
+
+    request_id = prediction_logs.save_prediction_log(
+        request=request,
+        response=response,
+        model_version=response.model_version,
+        engine=engine,
+    )
+
+    with engine.begin() as connection:
+        row = connection.execute(
+            select(prediction_logs.prediction_logs_table)
+        ).mappings().one()
+
+    assert str(row["request_id"]) == str(request_id)
+    assert row["user_id_hash"] == prediction_logs.hash_user_id(1001)
+    assert float(row["churn_probability"]) == 0.58
+    assert row["churn_prediction"] == 1
+    assert row["risk_band"] == "medium"
+    assert row["input_features"]["country"] == "US"
+    assert "user_id" not in row["input_features"]
+
+
+def test_predict_returns_503_when_log_save_fails(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    class FakePreprocessor:
+        def transform(self, data):
+            return np.array([[1.0]])
+
+        def get_feature_names_out(self):
+            return ["feature_a"]
+
+    class FakeModel:
+        def predict_proba(self, data):
+            return np.array([[0.42, 0.58]])
+
+    monkeypatch.setattr(
+        inference,
+        "load_prediction_artifacts",
+        lambda: inference.PredictionArtifacts(
+            model=FakeModel(),
+            preprocessor=FakePreprocessor(),
+            model_artifact_name="trained_model.pkl",
+            model_version="fake_model",
+        ),
+    )
+    monkeypatch.setattr(
+        prediction_router,
+        "save_prediction_log",
+        lambda **kwargs: (_ for _ in ()).throw(
+            prediction_logs.PredictionLogUnavailableError("DB unavailable")
+        ),
+    )
+
+    response = client.post("/predict", json=sample_payload())
+    payload = response.json()
+
+    assert response.status_code == 503
+    assert payload["detail"]["error"] == "prediction_log_unavailable"
 
 
 def test_model_metadata_uses_metrics_and_artifact_status(
@@ -192,6 +303,14 @@ def test_predict_batch_returns_row_count(
     assert payload["row_count"] == 2
     assert len(payload["items"]) == 2
     assert payload["items"][0]["risk_band"] == "medium"
+
+
+def test_recent_predictions_limit_validation(client: TestClient) -> None:
+    too_low = client.get("/predictions/recent?limit=0")
+    too_high = client.get("/predictions/recent?limit=101")
+
+    assert too_low.status_code == 422
+    assert too_high.status_code == 422
 
 
 def test_predict_batch_size_limit_returns_controlled_error(

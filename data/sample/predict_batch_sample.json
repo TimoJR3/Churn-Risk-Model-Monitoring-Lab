@@ -1,5 +1,6 @@
 [
   {
+    "user_id": 1001,
     "signup_date": "2025-09-01",
     "country": "US",
     "plan_type": "standard",
@@ -13,6 +14,7 @@
     "last_login_days_ago": 4
   },
   {
+    "user_id": 1002,
     "signup_date": "2025-12-15",
     "country": "DE",
     "plan_type": "premium",

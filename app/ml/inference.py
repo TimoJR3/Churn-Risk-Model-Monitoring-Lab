@@ -102,6 +102,7 @@ def predict_churn(
         churn_prediction=prediction,
         risk_band=risk_band,
         threshold=threshold,
+        model_version=artifacts.model_version,
         model_artifact_name=artifacts.model_artifact_name,
         explanation=(
             f"Risk band is {risk_band}; threshold {threshold:.2f} "

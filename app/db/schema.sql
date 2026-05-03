@@ -33,6 +33,19 @@ CREATE TABLE IF NOT EXISTS model_predictions (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS prediction_logs (
+    id BIGSERIAL PRIMARY KEY,
+    request_id UUID NOT NULL,
+    user_id_hash TEXT,
+    churn_probability NUMERIC NOT NULL,
+    churn_prediction INTEGER NOT NULL,
+    risk_band TEXT NOT NULL,
+    threshold NUMERIC NOT NULL,
+    model_version TEXT,
+    input_features JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS model_metrics (
     metric_id BIGSERIAL PRIMARY KEY,
     model_version VARCHAR(64) NOT NULL,
