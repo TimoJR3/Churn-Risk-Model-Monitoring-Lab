@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 from fastapi.testclient import TestClient
 
+from app.api.routers import prediction as prediction_router
 from app.ml import inference
 
 
@@ -118,3 +119,110 @@ def test_predict_endpoint_returns_503_for_missing_artifacts(
     assert response.status_code == 503
     assert payload["detail"]["error"] == "model_artifacts_unavailable"
     assert "traceback" not in str(payload).lower()
+
+
+def test_model_metadata_uses_metrics_and_artifact_status(
+    client: TestClient,
+    monkeypatch,
+    tmp_path,
+) -> None:
+    model_path = tmp_path / "trained_model.pkl"
+    preprocessor_path = tmp_path / "preprocessor.pkl"
+    metrics_path = tmp_path / "metrics.json"
+    model_path.write_text("model", encoding="utf-8")
+    preprocessor_path.write_text("preprocessor", encoding="utf-8")
+    metrics_path.write_text(
+        (
+            '{"best_model": "random_forest", '
+            '"validation_metrics": {"roc_auc": 0.91, "f1": 0.44}, '
+            '"generated_at": "2026-05-04T10:00:00Z"}'
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(inference, "TRAINED_MODEL_PATH", model_path)
+    monkeypatch.setattr(inference, "PREPROCESSOR_PATH", preprocessor_path)
+    monkeypatch.setattr(inference, "METRICS_PATH", metrics_path)
+
+    response = client.get("/model/metadata")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["best_model"] == "random_forest"
+    assert payload["validation_metrics"]["roc_auc"] == 0.91
+    assert payload["artifacts"]["trained_model"]["exists"] is True
+    assert payload["artifacts"]["preprocessor"]["path"] == str(preprocessor_path)
+    assert payload["threshold"] == 0.5
+    assert payload["generated_at"] == "2026-05-04T10:00:00Z"
+
+
+def test_predict_batch_returns_row_count(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    class FakePreprocessor:
+        def transform(self, data):
+            return np.array([[1.0]])
+
+        def get_feature_names_out(self):
+            return ["feature_a"]
+
+    class FakeModel:
+        def predict_proba(self, data):
+            return np.array([[0.42, 0.58]])
+
+    monkeypatch.setattr(
+        inference,
+        "load_prediction_artifacts",
+        lambda: inference.PredictionArtifacts(
+            model=FakeModel(),
+            preprocessor=FakePreprocessor(),
+            model_artifact_name="trained_model.pkl",
+            model_version="fake_model",
+        ),
+    )
+
+    response = client.post(
+        "/predict/batch",
+        json=[sample_payload(), sample_payload()],
+    )
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["row_count"] == 2
+    assert len(payload["items"]) == 2
+    assert payload["items"][0]["risk_band"] == "medium"
+
+
+def test_predict_batch_size_limit_returns_controlled_error(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(prediction_router.settings, "prediction_batch_size", 1)
+
+    response = client.post(
+        "/predict/batch",
+        json=[sample_payload(), sample_payload()],
+    )
+    payload = response.json()
+
+    assert response.status_code == 413
+    assert payload["detail"]["error"] == "batch_size_limit_exceeded"
+    assert payload["detail"]["limit"] == 1
+
+
+def test_predict_batch_invalid_item_returns_validation_error(
+    client: TestClient,
+) -> None:
+    invalid_payload = sample_payload()
+    invalid_payload["country"] = "INVALID"
+
+    response = client.post(
+        "/predict/batch",
+        json=[sample_payload(), invalid_payload],
+    )
+    payload = response.json()
+
+    assert response.status_code == 422
+    assert payload["detail"]
+    assert payload["detail"][0]["loc"][0:2] == ["body", 1]

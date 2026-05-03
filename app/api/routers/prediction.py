@@ -1,11 +1,19 @@
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Body, HTTPException, status
 
 from app.core.config import settings
 from app.ml.inference import (
     ModelArtifactsUnavailableError,
+    get_model_metadata,
     predict_churn,
 )
-from app.schemas.prediction import PredictionRequest, PredictionResponse
+from app.schemas.prediction import (
+    BatchPredictionResponse,
+    ModelMetadataResponse,
+    PredictionRequest,
+    PredictionResponse,
+)
 
 
 router = APIRouter(tags=["prediction"])
@@ -26,3 +34,45 @@ def predict(request: PredictionRequest) -> PredictionResponse:
                 "message": str(exc),
             },
         ) from exc
+
+
+@router.post("/predict/batch", response_model=BatchPredictionResponse)
+def predict_batch(
+    requests: Annotated[list[PredictionRequest], Body(min_length=1)],
+) -> BatchPredictionResponse:
+    if len(requests) > settings.prediction_batch_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={
+                "error": "batch_size_limit_exceeded",
+                "message": (
+                    "Batch size exceeds configured limit "
+                    f"of {settings.prediction_batch_size}."
+                ),
+                "limit": settings.prediction_batch_size,
+            },
+        )
+
+    try:
+        items = [
+            predict_churn(
+                request=request,
+                threshold=settings.prediction_threshold,
+            )
+            for request in requests
+        ]
+    except ModelArtifactsUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "model_artifacts_unavailable",
+                "message": str(exc),
+            },
+        ) from exc
+
+    return BatchPredictionResponse(row_count=len(items), items=items)
+
+
+@router.get("/model/metadata", response_model=ModelMetadataResponse)
+def model_metadata() -> ModelMetadataResponse:
+    return get_model_metadata(threshold=settings.prediction_threshold)

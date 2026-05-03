@@ -1,0 +1,28 @@
+[
+  {
+    "signup_date": "2025-09-01",
+    "country": "US",
+    "plan_type": "standard",
+    "monthly_fee": 19.99,
+    "days_active_last_30": 12,
+    "sessions_last_30": 30,
+    "support_tickets_last_30": 1,
+    "payments_failed_last_90": 0,
+    "avg_session_duration": 24.5,
+    "feature_usage_score": 61.0,
+    "last_login_days_ago": 4
+  },
+  {
+    "signup_date": "2025-12-15",
+    "country": "DE",
+    "plan_type": "premium",
+    "monthly_fee": 39.99,
+    "days_active_last_30": 24,
+    "sessions_last_30": 68,
+    "support_tickets_last_30": 0,
+    "payments_failed_last_90": 0,
+    "avg_session_duration": 42.0,
+    "feature_usage_score": 83.5,
+    "last_login_days_ago": 1
+  }
+]

@@ -10,7 +10,13 @@ import pandas as pd
 from app.ml.features import add_feature_engineering
 from app.ml.preprocessing import DROP_COLUMNS, transform_to_dataframe
 from app.ml.training import METRICS_PATH, PREPROCESSOR_PATH, TRAINED_MODEL_PATH
-from app.schemas.prediction import PredictionRequest, PredictionResponse, RiskBand
+from app.schemas.prediction import (
+    ArtifactStatus,
+    ModelMetadataResponse,
+    PredictionRequest,
+    PredictionResponse,
+    RiskBand,
+)
 
 
 ARTIFACT_COMMAND = "python -m app.ml.training --source csv --n-splits 3"
@@ -42,6 +48,13 @@ def _read_model_version() -> str:
 
     metrics = json.loads(METRICS_PATH.read_text(encoding="utf-8"))
     return str(metrics.get("best_model", "unknown"))
+
+
+def _read_metrics() -> dict[str, object]:
+    if not METRICS_PATH.exists():
+        return {}
+
+    return json.loads(METRICS_PATH.read_text(encoding="utf-8"))
 
 
 @lru_cache(maxsize=1)
@@ -93,5 +106,38 @@ def predict_churn(
         explanation=(
             f"Risk band is {risk_band}; threshold {threshold:.2f} "
             f"maps probabilities at or above threshold to churn."
+        ),
+    )
+
+
+def get_model_metadata(threshold: float) -> ModelMetadataResponse:
+    metrics = _read_metrics()
+
+    return ModelMetadataResponse(
+        best_model=(
+            str(metrics["best_model"])
+            if metrics.get("best_model") is not None
+            else None
+        ),
+        validation_metrics=dict(metrics.get("validation_metrics", {})),
+        artifacts={
+            "trained_model": ArtifactStatus(
+                path=str(TRAINED_MODEL_PATH),
+                exists=TRAINED_MODEL_PATH.exists(),
+            ),
+            "preprocessor": ArtifactStatus(
+                path=str(PREPROCESSOR_PATH),
+                exists=PREPROCESSOR_PATH.exists(),
+            ),
+            "metrics": ArtifactStatus(
+                path=str(METRICS_PATH),
+                exists=METRICS_PATH.exists(),
+            ),
+        },
+        threshold=threshold,
+        generated_at=(
+            str(metrics["generated_at"])
+            if metrics.get("generated_at") is not None
+            else None
         ),
     )

@@ -30,3 +30,21 @@ class PredictionResponse(BaseModel):
     threshold: float = Field(ge=0, le=1)
     model_artifact_name: str
     explanation: str
+
+
+class BatchPredictionResponse(BaseModel):
+    row_count: int = Field(ge=0)
+    items: list[PredictionResponse]
+
+
+class ArtifactStatus(BaseModel):
+    path: str
+    exists: bool
+
+
+class ModelMetadataResponse(BaseModel):
+    best_model: str | None = None
+    validation_metrics: dict[str, object]
+    artifacts: dict[str, ArtifactStatus]
+    threshold: float = Field(ge=0, le=1)
+    generated_at: str | None = None
