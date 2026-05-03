@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,7 @@ class Settings(BaseSettings):
     postgres_db: str = "churn_lab"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
+    prediction_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
 
     model_config = SettingsConfigDict(
         env_file=".env",
