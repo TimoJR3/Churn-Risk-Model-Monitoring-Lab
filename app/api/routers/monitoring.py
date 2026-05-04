@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+
+from app.monitoring.drift import calculate_psi, drift_status
+from app.monitoring.quality import (
+    calculate_prediction_summary,
+    calculate_quality_metrics,
+)
+
+
+router = APIRouter(prefix="/monitoring", tags=["monitoring"])
+
+PredictionLog = dict[str, float | str | int | bool | None]
+
+FAKE_PREDICTION_LOGS: list[PredictionLog] = [
+    {"prediction_id": 1, "probability": 0.18},
+    {"prediction_id": 2, "probability": 0.46},
+    {"prediction_id": 3, "probability": 0.81},
+]
+
+
+class PredictionSummaryResponse(BaseModel):
+    total_predictions: int
+    average_probability: float | None
+    high_risk_share: float
+    risk_band_counts: dict[Literal["low", "medium", "high"], int]
+
+
+class DriftRequest(BaseModel):
+    expected: list[float | None]
+    actual: list[float | None]
+    buckets: int = Field(default=10, ge=1, le=100)
+
+
+class DriftResponse(BaseModel):
+    psi: float
+    status: Literal["stable", "warning", "drift"]
+    buckets: int
+    expected_count: int
+    actual_count: int
+
+
+class QualityRequest(BaseModel):
+    y_true: list[int] | None = None
+    y_score: list[float | None]
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class QualityResponse(BaseModel):
+    roc_auc: float | None
+    precision: float | None
+    recall: float | None
+    f1: float | None
+
+
+@router.get("/summary", response_model=PredictionSummaryResponse)
+def get_monitoring_summary() -> dict[str, object]:
+    """Return a minimal prediction monitoring summary."""
+    return calculate_prediction_summary(FAKE_PREDICTION_LOGS)
+
+
+@router.post("/drift", response_model=DriftResponse)
+def post_monitoring_drift(request: DriftRequest) -> dict[str, object]:
+    """Calculate PSI and drift status for one numeric feature."""
+    result = calculate_psi(
+        expected=request.expected,
+        actual=request.actual,
+        buckets=request.buckets,
+    )
+    result["status"] = drift_status(float(result["psi"]))
+    return result
+
+
+@router.post("/quality", response_model=QualityResponse)
+def post_monitoring_quality(request: QualityRequest) -> dict[str, float | None]:
+    """Calculate model quality metrics from labels and prediction scores."""
+    return calculate_quality_metrics(
+        y_true=request.y_true,
+        y_score=request.y_score,
+        threshold=request.threshold,
+    )
