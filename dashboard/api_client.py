@@ -10,9 +10,14 @@ import streamlit as st
 DEFAULT_API_BASE_URL = "http://localhost:8000"
 REQUEST_TIMEOUT_SECONDS = 5.0
 RISK_BAND_LABELS = {
-    "low": "Low risk",
-    "medium": "Medium risk",
-    "high": "High risk",
+    "low": "LOW RISK",
+    "medium": "MEDIUM RISK",
+    "high": "HIGH RISK",
+}
+RISK_BAND_CLASSES = {
+    "low": "risk-low",
+    "medium": "risk-medium",
+    "high": "risk-high",
 }
 
 
@@ -43,8 +48,15 @@ def format_probability(value: float | int | None) -> str:
 def risk_band_display(value: str | None) -> str:
     """Return a human-readable risk band label."""
     if value is None:
-        return "Unknown risk"
-    return RISK_BAND_LABELS.get(value.lower(), "Unknown risk")
+        return "UNKNOWN RISK"
+    return RISK_BAND_LABELS.get(value.lower(), "UNKNOWN RISK")
+
+
+def risk_band_css_class(value: str | None) -> str:
+    """Return a stable CSS class for a risk band."""
+    if value is None:
+        return "risk-unknown"
+    return RISK_BAND_CLASSES.get(value.lower(), "risk-unknown")
 
 
 def _error_message(exc: Exception) -> str:

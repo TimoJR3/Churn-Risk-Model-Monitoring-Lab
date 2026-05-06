@@ -13,11 +13,11 @@ def test_format_probability_handles_values_and_missing_data() -> None:
 
 
 def test_risk_band_display_returns_readable_labels() -> None:
-    assert risk_band_display("low") == "Low risk"
-    assert risk_band_display("medium") == "Medium risk"
-    assert risk_band_display("high") == "High risk"
-    assert risk_band_display("unexpected") == "Unknown risk"
-    assert risk_band_display(None) == "Unknown risk"
+    assert risk_band_display("low") == "LOW RISK"
+    assert risk_band_display("medium") == "MEDIUM RISK"
+    assert risk_band_display("high") == "HIGH RISK"
+    assert risk_band_display("unexpected") == "UNKNOWN RISK"
+    assert risk_band_display(None) == "UNKNOWN RISK"
 
 
 def test_normalize_api_base_url_uses_default_and_strips_slash() -> None:
