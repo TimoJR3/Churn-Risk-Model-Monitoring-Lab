@@ -1,0 +1,16 @@
+.git
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.env
+.DS_Store
+
+# Raw data can be regenerated and is not needed at runtime.
+data/raw
+
+# Keep artifacts in the image: /predict loads trained_model.pkl,
+# preprocessor.pkl, and metrics.json from artifacts/.

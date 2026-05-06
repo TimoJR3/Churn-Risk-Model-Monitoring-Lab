@@ -8,6 +8,9 @@ from app.core.config import settings
 
 
 def get_database_url() -> str:
+    if settings.database_url:
+        return settings.database_url
+
     return (
         "postgresql+psycopg2://"
         f"{settings.postgres_user}:{settings.postgres_password}"

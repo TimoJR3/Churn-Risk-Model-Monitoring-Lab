@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,8 +13,19 @@ class Settings(BaseSettings):
     postgres_db: str = "churn_lab"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
+    database_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "database_url"),
+    )
     prediction_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-    prediction_batch_size: int = Field(default=100, ge=1)
+    prediction_batch_size: int = Field(
+        default=100,
+        ge=1,
+        validation_alias=AliasChoices(
+            "PREDICTION_BATCH_SIZE",
+            "MAX_BATCH_SIZE",
+        ),
+    )
     save_predictions: bool = True
 
     model_config = SettingsConfigDict(
