@@ -14,7 +14,6 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from app.ml.data_loader import load_churn_data
 from app.ml.features import add_feature_engineering
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"

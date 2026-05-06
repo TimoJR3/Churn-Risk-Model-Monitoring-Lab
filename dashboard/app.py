@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import date
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 
@@ -12,14 +13,21 @@ import streamlit as st
 from dashboard.api_client import (
     DEFAULT_API_BASE_URL,
     ApiResult,
-    format_probability,
     get_json,
     normalize_api_base_url,
     post_json,
+)
+from dashboard.helpers import (
+    format_probability,
+    prediction_label,
+    prepare_batch_results_table,
+    prepare_recent_predictions_table,
+    prepare_risk_band_counts_table,
     risk_band_css_class,
     risk_band_display,
+    risk_band_interpretation,
+    summarize_batch_results,
 )
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BATCH_SAMPLE_PATH = PROJECT_ROOT / "data" / "sample" / "predict_batch_sample.json"
@@ -42,8 +50,16 @@ def inject_theme() -> None:
         .stApp {
             color: var(--ink);
             background:
-                radial-gradient(circle at 12% 12%, rgba(66,246,255,0.18), transparent 28%),
-                radial-gradient(circle at 78% 8%, rgba(255,92,138,0.16), transparent 26%),
+                radial-gradient(
+                    circle at 12% 12%,
+                    rgba(66,246,255,0.18),
+                    transparent 28%
+                ),
+                radial-gradient(
+                    circle at 78% 8%,
+                    rgba(255,92,138,0.16),
+                    transparent 26%
+                ),
                 linear-gradient(135deg, #04070e 0%, #0a1420 46%, #111827 100%);
         }
         [data-testid="stSidebar"] {
@@ -55,7 +71,11 @@ def inject_theme() -> None:
             max-width: 1420px;
         }
         div[data-testid="stMetric"] {
-            background: linear-gradient(145deg, rgba(16,28,46,0.92), rgba(7,13,24,0.82));
+            background: linear-gradient(
+                145deg,
+                rgba(16,28,46,0.92),
+                rgba(7,13,24,0.82)
+            );
             border: 1px solid var(--line);
             border-radius: 8px;
             padding: 1rem 1.1rem;
@@ -114,6 +134,7 @@ def inject_theme() -> None:
             border-radius: 8px;
             padding: 1rem;
             background: var(--panel);
+            margin-bottom: 1rem;
         }
         .section-kicker {
             color: var(--cyan);
@@ -139,130 +160,185 @@ def inject_theme() -> None:
     )
 
 
-def load_batch_sample() -> list[dict[str, Any]]:
+def load_batch_sample() -> tuple[list[dict[str, Any]], str | None]:
     try:
-        return json.loads(BATCH_SAMPLE_PATH.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+        payload = json.loads(BATCH_SAMPLE_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return [], (
+            "Sample JSON не найден. Нужен файл "
+            "`data/sample/predict_batch_sample.json`."
+        )
+    except JSONDecodeError:
+        return [], (
+            "Файл `data/sample/predict_batch_sample.json` содержит "
+            "невалидный JSON."
+        )
+
+    if not isinstance(payload, list) or not all(
+        isinstance(item, dict) for item in payload
+    ):
+        return [], "Sample JSON должен быть списком объектов клиентов."
+
+    return payload, None
 
 
-def show_api_error(result: ApiResult) -> None:
-    st.error(result.error or "API request failed.")
-    if result.data:
-        st.json(result.data)
-    st.info("Start the backend, then refresh this dashboard.")
+def show_startup_commands() -> None:
     st.code(
+        "docker compose up --build\n\n"
+        "# или локально без PostgreSQL:\n"
+        "$env:SAVE_PREDICTIONS=\"false\"\n"
         "uvicorn app.api.main:app --reload\n"
         "streamlit run dashboard/app.py",
-        language="bash",
+        language="powershell",
     )
+
+
+def show_api_error(
+    result: ApiResult,
+    title: str = "Не удалось получить данные",
+) -> None:
+    st.error(f"{title}. {result.error or 'Проверьте backend API.'}")
+
+    detail = result.data.get("detail") if isinstance(result.data, dict) else None
+    error_code = detail.get("error") if isinstance(detail, dict) else None
+    if error_code == "prediction_log_unavailable":
+        st.warning(
+            "Логи прогнозов сейчас недоступны. Проверьте PostgreSQL или "
+            "запустите API с `SAVE_PREDICTIONS=false`, если нужна только "
+            "демонстрация inference."
+        )
+    elif error_code == "model_artifacts_unavailable":
+        st.warning(
+            "Artifacts модели не найдены. Сначала выполните обучение: "
+            "`python -m app.ml.training --source csv --n-splits 3`."
+        )
+    else:
+        st.info("Запустите backend и обновите страницу dashboard.")
+
+    show_startup_commands()
+    if result.data:
+        with st.expander("Показать технические детали"):
+            st.json(result.data)
 
 
 def render_header(api_base_url: str) -> tuple[ApiResult, ApiResult]:
     health = get_json(api_base_url, "/health")
     metadata = get_json(api_base_url, "/model/metadata")
     online = health.ok
-    model_name = "n/a"
-    threshold = "n/a"
+    model_name = "н/д"
+    threshold = "н/д"
 
     if metadata.ok and isinstance(metadata.data, dict):
-        model_name = str(metadata.data.get("best_model") or "n/a")
-        threshold = str(metadata.data.get("threshold", "n/a"))
+        model_name = str(metadata.data.get("best_model") or "н/д")
+        threshold = str(metadata.data.get("threshold", "н/д"))
 
     signal_class = "signal-online" if online else "signal-offline"
-    signal_text = "API ONLINE" if online else "API OFFLINE"
+    signal_text = "API онлайн" if online else "API недоступен"
 
     st.markdown(
         f"""
         <section class="command-deck">
-            <p class="section-kicker">Retention command surface</p>
-            <h1 class="command-title">Churn Risk & Model Monitoring Lab</h1>
+            <p class="section-kicker">Мониторинг оттока</p>
+            <h1 class="command-title">Лаборатория мониторинга churn-модели</h1>
             <p class="command-subtitle">
-                Live prediction cockpit for churn inference, batch scoring, model quality,
-                and drift signals.
+                Демо-сервис для прогноза оттока, batch scoring,
+                мониторинга качества модели и drift-сигналов.
             </p>
             <div class="signal-strip">
                 <span class="signal-pill {signal_class}">{signal_text}</span>
-                <span class="signal-pill">MODEL: {model_name}</span>
-                <span class="signal-pill">THRESHOLD: {threshold}</span>
-                <span class="signal-pill">API: {api_base_url}</span>
+                <span class="signal-pill">Модель: {model_name}</span>
+                <span class="signal-pill">Порог: {threshold}</span>
+                <span class="signal-pill">Backend: {api_base_url}</span>
             </div>
         </section>
         """,
         unsafe_allow_html=True,
     )
 
+    if not online:
+        st.warning(
+            "Dashboard работает, но backend API сейчас недоступен. "
+            "Данные появятся после запуска FastAPI."
+        )
+        show_startup_commands()
+
     return health, metadata
 
 
 def render_metric_row(summary: dict[str, Any]) -> None:
-    total, average, high_risk = st.columns(3)
-    total.metric("Total predictions", summary.get("total_predictions", 0))
+    total, average, high_risk, updated = st.columns(4)
+    total.metric("Всего прогнозов", summary.get("total_predictions", 0))
     average.metric(
-        "Average probability",
+        "Средняя вероятность оттока",
         format_probability(summary.get("average_probability")),
     )
     high_risk.metric(
-        "High-risk share",
+        "Доля высокого риска",
         format_probability(summary.get("high_risk_share")),
     )
+    updated.metric("Последнее обновление", "сейчас")
 
 
 def build_prediction_payload() -> dict[str, Any]:
+    st.subheader("Профиль клиента")
     left, right = st.columns(2)
 
     with left:
-        st.markdown('<p class="section-kicker">Identity</p>', unsafe_allow_html=True)
-        user_id = st.text_input("User ID", value="1001")
-        signup_date = st.date_input("Signup date", value=date(2025, 9, 1))
+        user_id = st.text_input("ID клиента", value="1001")
+        signup_date = st.date_input("Дата регистрации", value=date(2025, 9, 1))
         country = st.selectbox(
-            "Country",
+            "Страна",
             ["US", "DE", "FR", "BR", "IN", "PL", "NL", "ES"],
             index=0,
         )
         plan_type = st.segmented_control(
-            "Plan type",
+            "Тариф",
             ["basic", "standard", "premium"],
             default="standard",
         )
         monthly_fee = st.number_input(
-            "Monthly fee",
+            "Ежемесячный платёж",
             min_value=0.01,
             value=19.99,
             step=1.0,
         )
-        days_active_last_30 = st.slider("Days active last 30", 0, 30, 12)
+        days_active_last_30 = st.slider("Активных дней за 30 дней", 0, 30, 12)
 
     with right:
-        st.markdown('<p class="section-kicker">Behavior</p>', unsafe_allow_html=True)
+        st.subheader("Активность")
         sessions_last_30 = st.number_input(
-            "Sessions last 30",
+            "Сессий за 30 дней",
             min_value=0,
             value=30,
             step=1,
         )
         support_tickets_last_30 = st.number_input(
-            "Support tickets last 30",
+            "Обращений в поддержку за 30 дней",
             min_value=0,
             value=1,
             step=1,
         )
         payments_failed_last_90 = st.number_input(
-            "Payments failed last 90",
+            "Неуспешных платежей за 90 дней",
             min_value=0,
             value=0,
             step=1,
         )
         avg_session_duration = st.slider(
-            "Average session duration",
+            "Средняя длительность сессии",
             min_value=0.0,
             max_value=120.0,
             value=24.5,
             step=0.5,
         )
-        feature_usage_score = st.slider("Feature usage score", 0.0, 100.0, 61.0)
+        feature_usage_score = st.slider(
+            "Индекс использования функций",
+            0.0,
+            100.0,
+            61.0,
+        )
         last_login_days_ago = st.number_input(
-            "Last login days ago",
+            "Дней с последнего входа",
             min_value=0,
             value=4,
             step=1,
@@ -293,65 +369,122 @@ def render_prediction_result(response: dict[str, Any]) -> None:
     st.markdown(
         f"""
         <div class="panel">
-            <p class="section-kicker">Prediction signal</p>
+            <p class="section-kicker">Результат inference</p>
             <p class="probability-readout">{probability_text}</p>
-            <span class="risk-pill {risk_class}">{risk_label}</span>
-            <p class="small-muted">
-                prediction={response.get("churn_prediction", "n/a")}
-                threshold={response.get("threshold", "n/a")}
-            </p>
+            <span class="risk-pill {risk_class}">Уровень риска: {risk_label}</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    explanation = response.get("explanation")
-    if explanation:
-        st.caption(str(explanation))
+
+    probability, prediction, risk, threshold = st.columns(4)
+    probability.metric("Вероятность оттока", probability_text)
+    prediction.metric(
+        "Класс прогноза",
+        prediction_label(response.get("churn_prediction")),
+    )
+    risk.metric("Уровень риска", risk_label)
+    threshold.metric(
+        "Порог классификации",
+        format_probability(response.get("threshold")),
+    )
+
+    st.info(f"Интерпретация: {risk_band_interpretation(risk_band)}")
+    with st.expander("Показать технический ответ API"):
+        st.json(response)
 
 
 def render_predict_tab(api_base_url: str) -> None:
+    st.header("Прогноз оттока")
+    st.caption(
+        "Заполните тестовый профиль клиента и отправьте его в FastAPI endpoint "
+        "`/predict`."
+    )
+
     with st.form("predict-form"):
         payload = build_prediction_payload()
-        submitted = st.form_submit_button("Predict churn")
+        submitted = st.form_submit_button("Рассчитать риск оттока")
 
     if not submitted:
-        st.markdown(
-            '<div class="panel"><p class="small-muted">'
-            "Tune the user profile and run a live API prediction."
-            "</p></div>",
-            unsafe_allow_html=True,
+        st.info(
+            "Измените признаки клиента или используйте значения по умолчанию, "
+            "затем нажмите «Рассчитать риск оттока»."
         )
         return
 
     result = post_json(api_base_url, "/predict", payload)
     if not result.ok:
-        show_api_error(result)
+        show_api_error(result, "Прогноз не выполнен")
         return
 
     render_prediction_result(result.data or {})
 
 
 def render_batch_tab(api_base_url: str) -> None:
-    sample = load_batch_sample()
-    st.markdown('<p class="section-kicker">Sample batch payload</p>', unsafe_allow_html=True)
-    st.caption(str(BATCH_SAMPLE_PATH))
-    st.json(sample)
+    st.header("Пакетный прогноз оттока")
+    st.caption(
+        "Запустите scoring для нескольких тестовых клиентов и сравните "
+        "распределение риска."
+    )
 
-    if not st.button("Send batch to /predict/batch"):
+    sample, sample_error = load_batch_sample()
+    if sample_error:
+        st.error(sample_error)
+        st.info(
+            "Создайте `data/sample/predict_batch_sample.json` со списком "
+            "объектов клиентов для endpoint `/predict/batch`."
+        )
+        return
+
+    st.success(f"Пример запроса загружен: {len(sample)} клиента.")
+    with st.expander("Показать sample JSON"):
+        st.json(sample)
+
+    if not st.button("Запустить пакетный прогноз", type="primary"):
         return
 
     result = post_json(api_base_url, "/predict/batch", sample)
     if not result.ok:
-        show_api_error(result)
+        show_api_error(result, "Пакетный прогноз не выполнен")
         return
 
     payload = result.data or {}
     items = payload.get("items", [])
-    st.metric("Rows returned", payload.get("row_count", len(items)))
-    st.dataframe(pd.DataFrame(items), use_container_width=True, hide_index=True)
+    if not isinstance(items, list) or not items:
+        st.warning("API вернул пустой список результатов.")
+        with st.expander("Показать технический ответ API"):
+            st.json(payload)
+        return
+
+    summary = summarize_batch_results(items)
+    row_count, average, high_count, high_share = st.columns(4)
+    row_count.metric("Клиентов обработано", payload.get("row_count", len(items)))
+    average.metric(
+        "Средняя вероятность оттока",
+        format_probability(summary["average_probability"]),
+    )
+    high_count.metric("Клиентов с высоким риском", summary["high_risk_count"])
+    high_share.metric(
+        "Доля высокого риска",
+        format_probability(summary["high_risk_share"]),
+    )
+
+    st.dataframe(
+        prepare_batch_results_table(items, sample),
+        use_container_width=True,
+        hide_index=True,
+    )
+    with st.expander("Показать технический ответ API"):
+        st.json(payload)
 
 
 def render_monitoring_tab(api_base_url: str) -> None:
+    st.header("Мониторинг предсказаний")
+    st.caption(
+        "Здесь отображается сводка по последним логам прогнозов и "
+        "распределение риска."
+    )
+
     summary = get_json(api_base_url, "/monitoring/summary")
     recent = get_json(api_base_url, "/predictions/recent?limit=20")
 
@@ -359,56 +492,104 @@ def render_monitoring_tab(api_base_url: str) -> None:
         render_metric_row(summary.data)
         counts = summary.data.get("risk_band_counts", {})
         if isinstance(counts, dict):
-            st.bar_chart(pd.Series(counts, name="count"))
+            counts_table = prepare_risk_band_counts_table(counts)
+            left, right = st.columns([1, 2])
+            left.dataframe(counts_table, use_container_width=True, hide_index=True)
+            right.bar_chart(counts_table.set_index("Уровень риска"))
     else:
-        show_api_error(summary)
+        show_api_error(summary, "Сводка мониторинга недоступна")
 
-    st.markdown('<p class="section-kicker">Recent prediction logs</p>', unsafe_allow_html=True)
-    if recent.ok and isinstance(recent.data, dict):
-        st.dataframe(
-            pd.DataFrame(recent.data.get("items", [])),
-            use_container_width=True,
-            hide_index=True,
+    st.subheader("Последние прогнозы")
+    if not recent.ok or not isinstance(recent.data, dict):
+        show_api_error(recent, "Логи прогнозов недоступны")
+        return
+
+    items = recent.data.get("items", [])
+    if not items:
+        st.info(
+            "Пока нет сохранённых прогнозов. Перейдите во вкладку «Прогноз» "
+            "и рассчитайте риск для тестового клиента."
         )
-    else:
-        st.warning("Recent predictions are unavailable.")
-        if recent.data:
-            st.json(recent.data)
+        return
+
+    st.dataframe(
+        prepare_recent_predictions_table(items),
+        use_container_width=True,
+        hide_index=True,
+    )
+    with st.expander("Показать технические детали логов прогнозов"):
+        st.json(items)
+
+
+def _metric_value(metrics: dict[str, Any], key: str) -> str:
+    value = metrics.get(key)
+    if isinstance(value, int | float):
+        return f"{float(value):.3f}"
+    return "н/д"
 
 
 def render_model_tab(metadata: ApiResult) -> None:
+    st.header("Информация о модели")
     if not metadata.ok or not isinstance(metadata.data, dict):
-        show_api_error(metadata)
+        show_api_error(metadata, "Metadata модели недоступна")
         return
 
-    model_col, generated_col = st.columns(2)
-    model_col.metric("Best model", metadata.data.get("best_model") or "n/a")
-    generated_col.metric("Generated at", metadata.data.get("generated_at") or "n/a")
+    data = metadata.data
+    validation_metrics = data.get("validation_metrics", {})
+    artifacts = data.get("artifacts", {})
 
-    st.markdown('<p class="section-kicker">Validation metrics</p>', unsafe_allow_html=True)
-    validation_metrics = metadata.data.get("validation_metrics", {})
+    model_col, threshold_col, version_col = st.columns(3)
+    model_col.metric("Тип модели", data.get("best_model") or "н/д")
+    threshold_col.metric(
+        "Порог классификации",
+        format_probability(data.get("threshold")),
+    )
+    version_col.metric("Версия / имя artifacts", data.get("best_model") or "н/д")
+
+    st.subheader("Метрики валидации")
     if isinstance(validation_metrics, dict) and validation_metrics:
+        roc_auc, precision, recall, f1 = st.columns(4)
+        roc_auc.metric("ROC AUC", _metric_value(validation_metrics, "roc_auc"))
+        precision.metric("Precision", _metric_value(validation_metrics, "precision"))
+        recall.metric("Recall", _metric_value(validation_metrics, "recall"))
+        f1.metric("F1", _metric_value(validation_metrics, "f1"))
+    else:
+        st.info(
+            "Метрики не найдены. Проверьте `artifacts/metrics.json` "
+            "или переобучите модель."
+        )
+
+    st.subheader("Статус artifacts")
+    if isinstance(artifacts, dict) and artifacts:
+        artifact_rows = [
+            {
+                "Файл artifacts": name,
+                "Статус": "найден" if details.get("exists") else "не найден",
+                "Путь": details.get("path", "н/д"),
+            }
+            for name, details in artifacts.items()
+            if isinstance(details, dict)
+        ]
         st.dataframe(
-            pd.DataFrame(
-                [
-                    {"metric": key, "value": value}
-                    for key, value in validation_metrics.items()
-                ]
-            ),
+            pd.DataFrame(artifact_rows),
             use_container_width=True,
             hide_index=True,
         )
     else:
-        st.info("Validation metrics are not available yet.")
+        st.warning("Статус artifacts недоступен.")
 
-    st.markdown('<p class="section-kicker">Artifacts</p>', unsafe_allow_html=True)
-    st.json(metadata.data.get("artifacts", {}))
+    st.info(
+        "Как читать результат: вероятность оттока — это оценка риска по "
+        "текущим признакам клиента. Она помогает приоритизировать действия, "
+        "но не является бизнес-решением сама по себе."
+    )
+    with st.expander("Показать полный ответ /model/metadata"):
+        st.json(data)
 
 
 def main() -> None:
     st.set_page_config(
-        page_title="Churn Monitoring Lab",
-        page_icon="chart_with_downwards_trend",
+        page_title="Лаборатория churn-мониторинга",
         layout="wide",
     )
     inject_theme()
@@ -417,21 +598,19 @@ def main() -> None:
         os.getenv("API_BASE_URL", DEFAULT_API_BASE_URL)
     )
     with st.sidebar:
-        st.markdown("### Control plane")
+        st.markdown("### Настройки")
         api_base_url = normalize_api_base_url(
-            st.text_input("API_BASE_URL", value=default_api_url)
+            st.text_input("Backend API URL", value=default_api_url)
         )
-        if st.button("Refresh", use_container_width=True):
+        if st.button("Обновить данные", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
-        st.caption("GET requests cache for 60 seconds. POST requests stay live.")
+        st.caption("GET-запросы кешируются на 60 секунд. POST-запросы не кешируются.")
 
-    health, metadata = render_header(api_base_url)
-    if not health.ok:
-        show_api_error(health)
+    _health, metadata = render_header(api_base_url)
 
     predict_tab, batch_tab, monitoring_tab, model_tab = st.tabs(
-        ["Predict", "Batch demo", "Monitoring", "Model"]
+        ["Прогноз", "Пакетный прогноз", "Мониторинг", "Модель"]
     )
     with predict_tab:
         render_predict_tab(api_base_url)

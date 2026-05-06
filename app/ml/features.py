@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
 SNAPSHOT_DATE = "2026-04-24"
 
 

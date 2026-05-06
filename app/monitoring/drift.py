@@ -4,7 +4,6 @@ from collections.abc import Sequence
 
 import numpy as np
 
-
 EPSILON = 1e-6
 
 

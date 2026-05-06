@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-
 REQUIRED_COLUMNS = {
     "user_id",
     "signup_date",
@@ -65,7 +64,7 @@ def validate_churn_dataset(data: pd.DataFrame) -> list[str]:
         errors.append("feature_usage_score must be less than or equal to 100.")
 
     churn_values = set(data["churn"].dropna().unique())
-    if not churn_values.issubset({0, 1, False, True}):
+    if not churn_values.issubset({0, 1}):
         errors.append("churn must be binary.")
 
     churn_rate = data["churn"].mean()

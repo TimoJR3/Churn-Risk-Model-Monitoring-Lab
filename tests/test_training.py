@@ -1,7 +1,7 @@
 import pandas as pd
 
-from app.ml.generate_synthetic_data import generate_synthetic_churn_data
 from app.ml.features import add_feature_engineering
+from app.ml.generate_synthetic_data import generate_synthetic_churn_data
 from app.ml.preprocessing import DROP_COLUMNS, make_train_validation_split
 from app.ml.training import (
     build_candidate_models,

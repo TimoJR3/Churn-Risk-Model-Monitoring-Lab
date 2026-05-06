@@ -10,7 +10,6 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-
 LOW_RISK_MAX = 0.35
 HIGH_RISK_MIN = 0.65
 

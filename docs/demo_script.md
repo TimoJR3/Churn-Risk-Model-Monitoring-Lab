@@ -80,13 +80,13 @@ Explain PSI:
 streamlit run dashboard/app.py
 ```
 
-Open <http://localhost:8501> and show:
+Open <http://localhost:8501>. The dashboard UI is in Russian for a local
+portfolio walkthrough. Show:
 
-- API health and model metadata;
-- single prediction form;
-- batch demo;
-- monitoring tab;
-- model tab.
+- `Прогноз`: single prediction form and interpreted churn risk;
+- `Пакетный прогноз`: sample batch scoring without raw JSON as the main view;
+- `Мониторинг`: prediction summary or a clear empty state;
+- `Модель`: model metadata, validation metrics, and artifact status.
 
 ## 8. Show Engineering Quality
 

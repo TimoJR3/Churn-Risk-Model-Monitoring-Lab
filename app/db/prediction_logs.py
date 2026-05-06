@@ -26,7 +26,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db.session import get_engine
 from app.schemas.prediction import PredictionRequest, PredictionResponse
 
-
 metadata = MetaData()
 
 prediction_logs_table = Table(

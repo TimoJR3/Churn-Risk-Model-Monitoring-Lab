@@ -7,7 +7,6 @@ from sqlalchemy import create_engine
 
 from app.core.config import settings
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 

@@ -10,7 +10,6 @@ app = FastAPI(
 )
 app.include_router(monitoring_router)
 app.include_router(prediction_router)
-app.include_router(monitoring_router)
 
 
 @app.get("/health")

@@ -27,12 +27,10 @@ from app.ml.data_loader import load_churn_data
 from app.ml.features import add_feature_engineering
 from app.ml.preprocessing import (
     DROP_COLUMNS,
-    TARGET_COLUMN,
     build_preprocessing_pipeline,
     make_train_validation_split,
     transform_to_dataframe,
 )
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"

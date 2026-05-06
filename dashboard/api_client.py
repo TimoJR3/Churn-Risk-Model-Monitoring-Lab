@@ -6,19 +6,8 @@ from typing import Any
 import httpx
 import streamlit as st
 
-
 DEFAULT_API_BASE_URL = "http://localhost:8000"
 REQUEST_TIMEOUT_SECONDS = 5.0
-RISK_BAND_LABELS = {
-    "low": "LOW RISK",
-    "medium": "MEDIUM RISK",
-    "high": "HIGH RISK",
-}
-RISK_BAND_CLASSES = {
-    "low": "risk-low",
-    "medium": "risk-medium",
-    "high": "risk-high",
-}
 
 
 @dataclass(frozen=True)
@@ -38,33 +27,22 @@ def normalize_api_base_url(value: str | None) -> str:
     return value.strip().rstrip("/")
 
 
-def format_probability(value: float | int | None) -> str:
-    """Format a probability as a dashboard-friendly percentage."""
-    if value is None:
-        return "n/a"
-    return f"{float(value):.1%}"
-
-
-def risk_band_display(value: str | None) -> str:
-    """Return a human-readable risk band label."""
-    if value is None:
-        return "UNKNOWN RISK"
-    return RISK_BAND_LABELS.get(value.lower(), "UNKNOWN RISK")
-
-
-def risk_band_css_class(value: str | None) -> str:
-    """Return a stable CSS class for a risk band."""
-    if value is None:
-        return "risk-unknown"
-    return RISK_BAND_CLASSES.get(value.lower(), "risk-unknown")
-
-
 def _error_message(exc: Exception) -> str:
     if isinstance(exc, httpx.ConnectError):
-        return "API is unavailable. Check that the FastAPI service is running."
+        return "API недоступен. Проверьте, что FastAPI backend запущен."
     if isinstance(exc, httpx.TimeoutException):
-        return "API request timed out. Check backend logs and connectivity."
+        return "API не ответил вовремя. Проверьте backend logs и доступность сети."
     return str(exc)
+
+
+def _safe_response_payload(response: httpx.Response) -> Any | None:
+    if not response.content:
+        return None
+    try:
+        return response.json()
+    except ValueError:
+        text = response.text.strip()
+        return {"message": text[:500]} if text else None
 
 
 @st.cache_data(ttl=60)
@@ -76,13 +54,22 @@ def get_json(api_base_url: str, path: str) -> ApiResult:
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        return ApiResult(ok=True, data=response.json(), status_code=response.status_code)
+        try:
+            data = response.json()
+        except ValueError:
+            return ApiResult(
+                ok=False,
+                status_code=response.status_code,
+                error="API вернул невалидный JSON.",
+                data=_safe_response_payload(response),
+            )
+        return ApiResult(ok=True, data=data, status_code=response.status_code)
     except httpx.HTTPStatusError as exc:
         return ApiResult(
             ok=False,
-            data=exc.response.json() if exc.response.content else None,
+            data=_safe_response_payload(exc.response),
             status_code=exc.response.status_code,
-            error=f"API returned HTTP {exc.response.status_code}.",
+            error=f"API вернул HTTP {exc.response.status_code}.",
         )
     except httpx.HTTPError as exc:
         return ApiResult(ok=False, error=_error_message(exc))
@@ -97,13 +84,22 @@ def post_json(api_base_url: str, path: str, payload: Any) -> ApiResult:
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        return ApiResult(ok=True, data=response.json(), status_code=response.status_code)
+        try:
+            data = response.json()
+        except ValueError:
+            return ApiResult(
+                ok=False,
+                status_code=response.status_code,
+                error="API вернул невалидный JSON.",
+                data=_safe_response_payload(response),
+            )
+        return ApiResult(ok=True, data=data, status_code=response.status_code)
     except httpx.HTTPStatusError as exc:
         return ApiResult(
             ok=False,
-            data=exc.response.json() if exc.response.content else None,
+            data=_safe_response_payload(exc.response),
             status_code=exc.response.status_code,
-            error=f"API returned HTTP {exc.response.status_code}.",
+            error=f"API вернул HTTP {exc.response.status_code}.",
         )
     except httpx.HTTPError as exc:
         return ApiResult(ok=False, error=_error_message(exc))

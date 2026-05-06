@@ -21,7 +21,6 @@ from app.schemas.prediction import (
     RecentPredictionLogsResponse,
 )
 
-
 router = APIRouter(tags=["prediction"])
 
 

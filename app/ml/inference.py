@@ -18,7 +18,6 @@ from app.schemas.prediction import (
     RiskBand,
 )
 
-
 ARTIFACT_COMMAND = "python -m app.ml.training --source csv --n-splits 3"
 
 

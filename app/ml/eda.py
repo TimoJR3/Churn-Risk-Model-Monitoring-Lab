@@ -8,7 +8,6 @@ import pandas as pd
 from app.ml.data_loader import load_churn_data
 from app.ml.features import add_feature_engineering
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOCS_DIR = PROJECT_ROOT / "docs"
 REPORT_PATH = DOCS_DIR / "eda_report.md"

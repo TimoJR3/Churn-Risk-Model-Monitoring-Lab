@@ -33,7 +33,7 @@ synthetic data -> preprocessing -> training -> artifacts -> FastAPI inference
 - PostgreSQL prediction logs;
 - privacy-aware logging: raw `user_id` не сохраняется;
 - model metadata, PSI drift и quality monitoring endpoints;
-- Streamlit dashboard поверх API;
+- Streamlit dashboard поверх API, полностью русифицированный для демо на РФ-рынке;
 - pytest, Ruff, Docker Compose и GitHub Actions CI.
 
 ## Архитектура
@@ -146,6 +146,24 @@ docker compose up --build
 - Swagger UI: <http://localhost:8000/docs>
 - Dashboard: <http://localhost:8501>
 - PostgreSQL: `localhost:5432`
+
+## Как проверить demo локально
+
+Самый короткий сценарий для просмотра portfolio demo:
+
+```bash
+docker compose up --build -d
+```
+
+1. Откройте <http://localhost:8501>.
+2. Убедитесь, что в верхней панели отображается `API онлайн`.
+3. На вкладке `Прогноз` нажмите `Рассчитать риск оттока`.
+4. Откройте `Пакетный прогноз` и нажмите `Запустить пакетный прогноз`.
+5. Откройте `Мониторинг` и проверьте summary по prediction logs.
+6. Откройте `Модель` и проверьте metadata и validation metrics.
+
+Dashboard ориентирован на русскоязычного ревьюера: вкладки, кнопки,
+пояснения, ошибки, empty states и таблицы отображаются на русском языке.
 
 ## Команды
 
