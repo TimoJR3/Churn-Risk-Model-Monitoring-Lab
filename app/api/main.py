@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.routers.monitoring import router as monitoring_router
 from app.api.routers.prediction import router as prediction_router
 from app.core.config import settings
 
@@ -8,6 +9,7 @@ app = FastAPI(
     version="0.1.0",
 )
 app.include_router(prediction_router)
+app.include_router(monitoring_router)
 
 
 @app.get("/health")
