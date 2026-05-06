@@ -1,51 +1,56 @@
 # Churn Risk & Model Monitoring Lab
 
-Production-style ML portfolio project for churn prediction, inference logging,
-model monitoring, and a Streamlit dashboard.
+Портфолио-проект в формате production-like ML-сервиса: прогноз оттока
+пользователей, API-инференс, логирование предсказаний, мониторинг модели и
+Streamlit dashboard.
 
-The project shows the full path from synthetic customer data to a working API:
-synthetic data -> preprocessing -> training -> artifacts -> FastAPI inference ->
-PostgreSQL prediction logs -> monitoring -> Streamlit dashboard.
-
-## Business Problem
-
-A subscription business wants to identify customers with elevated churn risk
-before they leave. Early risk signals let the business prioritize retention
-actions such as support outreach, product education, discounts, or account
-review.
-
-The model estimates churn probability from product usage, payment friction,
-support activity, plan type, and recency features.
-
-## What This Demonstrates
-
-This is built as a junior Data Scientist / ML Engineer portfolio project. It
-demonstrates:
-
-- reproducible synthetic data generation;
-- feature engineering and preprocessing outside notebooks;
-- baseline model training with saved artifacts;
-- FastAPI inference with Pydantic request/response schemas;
-- prediction logging in PostgreSQL;
-- privacy-aware logging with hashed user identifiers;
-- model metadata, quality, and drift monitoring endpoints;
-- Streamlit dashboard that consumes the API;
-- pytest coverage, Docker Compose, and GitHub Actions CI.
-
-## Architecture
+Проект показывает полный путь:
 
 ```text
-synthetic data
-    -> preprocessing
-    -> training
-    -> artifacts
-    -> FastAPI inference
-    -> PostgreSQL logs
-    -> monitoring
+synthetic data -> preprocessing -> training -> artifacts -> FastAPI inference
+-> PostgreSQL logs -> monitoring -> Streamlit dashboard
+```
+
+## Бизнес-задача
+
+Подписочный продукт хочет заранее находить пользователей с повышенным риском
+оттока. Если риск известен до ухода клиента, бизнес может запустить retention:
+персональную коммуникацию, помощь поддержки, обучение продукту, скидку или
+ручную работу аккаунт-менеджера.
+
+Модель оценивает вероятность churn по активности в продукте, платежным
+проблемам, обращениям в поддержку, тарифу и давности последнего входа.
+
+## Что демонстрирует проект
+
+Проект ориентирован на junior Data Scientist / ML Engineer роль и показывает:
+
+- воспроизводимую генерацию synthetic dataset;
+- feature engineering и preprocessing вне notebook;
+- baseline training и сохранение model artifacts;
+- FastAPI inference с Pydantic-схемами;
+- batch prediction;
+- PostgreSQL prediction logs;
+- privacy-aware logging: raw `user_id` не сохраняется;
+- model metadata, PSI drift и quality monitoring endpoints;
+- Streamlit dashboard поверх API;
+- pytest, Ruff, Docker Compose и GitHub Actions CI.
+
+## Архитектура
+
+```text
+data/raw synthetic CSV
+    -> app.ml.preprocessing
+    -> data/processed train/validation CSV
+    -> app.ml.training
+    -> artifacts/trained_model.pkl + preprocessor.pkl + metrics.json
+    -> FastAPI /predict and /predict/batch
+    -> PostgreSQL prediction_logs
+    -> monitoring endpoints
     -> Streamlit dashboard
 ```
 
-Main docs:
+Документация:
 
 - [Architecture](docs/architecture.md)
 - [API examples](docs/api_examples.md)
@@ -54,7 +59,7 @@ Main docs:
 - [Data dictionary](docs/data_dictionary.md)
 - [Model card](docs/model_card.md)
 
-## Quickstart
+## Быстрый старт
 
 ### Windows PowerShell
 
@@ -66,16 +71,22 @@ pip install -r requirements.txt -r requirements-dev.txt
 Copy-Item .env.example .env
 ```
 
-Run the core workflow:
+Подготовить данные и модель:
 
 ```powershell
 python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
 python -m app.ml.preprocessing --source csv --test-size 0.2
 python -m app.ml.training --source csv --n-splits 3
+```
+
+Если запускаете API локально без PostgreSQL, отключите сохранение логов:
+
+```powershell
+$env:SAVE_PREDICTIONS="false"
 uvicorn app.api.main:app --reload
 ```
 
-In another terminal:
+Dashboard:
 
 ```powershell
 streamlit run dashboard/app.py
@@ -91,16 +102,22 @@ pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env
 ```
 
-Run the core workflow:
+Подготовить данные и модель:
 
 ```bash
 python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
 python -m app.ml.preprocessing --source csv --test-size 0.2
 python -m app.ml.training --source csv --n-splits 3
+```
+
+Если запускаете API локально без PostgreSQL:
+
+```bash
+export SAVE_PREDICTIONS=false
 uvicorn app.api.main:app --reload
 ```
 
-In another terminal:
+Dashboard:
 
 ```bash
 streamlit run dashboard/app.py
@@ -108,44 +125,47 @@ streamlit run dashboard/app.py
 
 ### Docker Compose
 
+Docker Compose поднимает API, dashboard и PostgreSQL. В этом режиме
+`SAVE_PREDICTIONS=true` и prediction logs пишутся в базу.
+
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Windows PowerShell equivalent:
+Windows PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Services:
+Сервисы:
 
 - API: <http://localhost:8000>
 - Swagger UI: <http://localhost:8000/docs>
 - Dashboard: <http://localhost:8501>
 - PostgreSQL: `localhost:5432`
 
-## Commands
+## Команды
 
-These commands match the `Makefile` targets.
+Команды соответствуют `Makefile`.
 
-| Task | Make target | Command |
+| Задача | Make target | Команда |
 | --- | --- | --- |
-| Install dependencies | `make install` | `pip install -r requirements.txt` |
-| Generate data | `make generate-data` | `python -m app.ml.generate_synthetic_data` |
-| EDA report | `make eda-report` | `python -m app.ml.eda` |
-| Preprocess data | `make prepare-data` | `python -m app.ml.preprocessing` |
-| Train model | `make train` | `python -m app.ml.training` |
-| Seed database | `make seed-db` | `python -m app.db.load_seed_data` |
-| Run API | `make run-api` | `uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000` |
-| Run dashboard | `make run-dashboard` | `streamlit run dashboard/app.py --server.port 8501` |
-| Run tests | `make test` | `pytest -q` |
+| Установить зависимости | `make install` | `pip install -r requirements.txt` |
+| Сгенерировать данные | `make generate-data` | `python -m app.ml.generate_synthetic_data` |
+| EDA-отчет | `make eda-report` | `python -m app.ml.eda` |
+| Preprocessing | `make prepare-data` | `python -m app.ml.preprocessing` |
+| Обучить модель | `make train` | `python -m app.ml.training` |
+| Загрузить seed в БД | `make seed-db` | `python -m app.db.load_seed_data` |
+| Запустить API | `make run-api` | `uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000` |
+| Запустить dashboard | `make run-dashboard` | `streamlit run dashboard/app.py --server.port 8501` |
+| Запустить тесты | `make test` | `pytest -q` |
 | Docker up | `make docker-up` | `docker compose up --build` |
 | Docker down | `make docker-down` | `docker compose down` |
 
-Common explicit commands:
+Частые команды:
 
 ```bash
 python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
@@ -157,20 +177,20 @@ python -m pytest -q
 docker compose up --build
 ```
 
-## API Endpoints
+## API endpoints
 
-| Method | Endpoint | Purpose |
+| Метод | Endpoint | Назначение |
 | --- | --- | --- |
-| `GET` | `/health` | Service health check |
-| `POST` | `/predict` | Single-user churn prediction |
-| `POST` | `/predict/batch` | Batch churn prediction |
-| `GET` | `/model/metadata` | Model metrics and artifact status |
-| `GET` | `/predictions/recent` | Recent prediction logs without raw user IDs |
-| `GET` | `/monitoring/summary` | Prediction monitoring summary |
+| `GET` | `/health` | Проверка состояния API |
+| `POST` | `/predict` | Prediction для одного пользователя |
+| `POST` | `/predict/batch` | Batch prediction |
+| `GET` | `/model/metadata` | Метрики модели и статус artifacts |
+| `GET` | `/predictions/recent` | Последние prediction logs без raw `user_id` |
+| `GET` | `/monitoring/summary` | Summary по prediction logs |
 | `POST` | `/monitoring/drift` | PSI drift check |
-| `POST` | `/monitoring/quality` | Quality metrics from labels and scores |
+| `POST` | `/monitoring/quality` | ROC-AUC, precision, recall, F1 |
 
-## Example Curl Requests
+## Curl-примеры
 
 Health:
 
@@ -194,7 +214,7 @@ curl -X POST http://localhost:8000/predict/batch \
   --data @data/sample/predict_batch_sample.json
 ```
 
-Model metadata:
+Metadata:
 
 ```bash
 curl http://localhost:8000/model/metadata
@@ -206,7 +226,7 @@ Recent logs:
 curl "http://localhost:8000/predictions/recent?limit=20"
 ```
 
-Drift check:
+Drift:
 
 ```bash
 curl -X POST http://localhost:8000/monitoring/drift \
@@ -214,7 +234,7 @@ curl -X POST http://localhost:8000/monitoring/drift \
   -d "{\"expected\":[1,2,3,4,5],\"actual\":[2,3,4,5,6],\"buckets\":5}"
 ```
 
-Quality check:
+Quality:
 
 ```bash
 curl -X POST http://localhost:8000/monitoring/quality \
@@ -222,11 +242,11 @@ curl -X POST http://localhost:8000/monitoring/quality \
   -d "{\"y_true\":[0,0,1,1],\"y_score\":[0.1,0.4,0.6,0.9],\"threshold\":0.5}"
 ```
 
-More examples: [docs/api_examples.md](docs/api_examples.md).
+Больше примеров: [docs/api_examples.md](docs/api_examples.md).
 
-## Testing and CI
+## Тестирование и CI
 
-Local checks:
+Локальные проверки:
 
 ```bash
 python -m compileall app dashboard tests
@@ -236,51 +256,50 @@ docker compose config
 docker build -t churn-lab:test .
 ```
 
-GitHub Actions runs the same core checks on push and pull request to `main`.
-On tags matching `v*`, CI publishes a Docker image to GitHub Container Registry:
+GitHub Actions запускает compile, Ruff, pytest, `docker compose config` и
+Docker build на push/pull request в `main`. На tag `v*` публикуется Docker
+image в GitHub Container Registry.
 
-- `ghcr.io/<owner>/<repo>:<tag>`
-- `ghcr.io/<owner>/<repo>:latest`
+## Model monitoring
 
-## Model Monitoring
+Monitoring layer включает:
 
-The monitoring layer exposes:
+- summary по prediction logs;
+- PSI для numeric feature drift;
+- quality metrics по labels и prediction scores.
 
-- prediction summary from logged inference results;
-- Population Stability Index (PSI) for numeric feature drift;
-- quality metrics from labels and prediction scores.
-
-PSI compares the expected distribution of a numeric feature with the actual
-distribution. In this project:
+PSI показывает, насколько распределение фактических значений отличается от
+ожидаемого:
 
 - `stable`: PSI `< 0.1`;
 - `warning`: `0.1 <= PSI < 0.25`;
 - `drift`: PSI `>= 0.25`.
 
-Limitations: PSI is a univariate signal, bucket choices matter, and this demo
-does not include scheduled monitoring jobs or alerting.
+Ограничения PSI в этом проекте: это univariate signal, результат зависит от
+bucket-стратегии, нет scheduler jobs и alerting.
 
-More details: [docs/monitoring.md](docs/monitoring.md).
+Подробнее: [docs/monitoring.md](docs/monitoring.md).
 
-## Security and Privacy
+## Security / Privacy
 
-- No secrets are committed. Use `.env` locally and keep it ignored.
-- Prediction logs never store raw `user_id`; only a SHA-256 hash is stored.
-- The dataset is synthetic only.
-- Sample payloads are fake and contain no real personal data.
+- Секреты не хранятся в репозитории.
+- `.env` игнорируется git.
+- Prediction logs не сохраняют raw `user_id`; сохраняется только SHA-256 hash.
+- Данные synthetic, без реальных персональных данных.
+- Sample payloads вымышленные.
 
-## Limitations
+## Ограничения
 
-- Synthetic dataset; metrics are not business benchmarks.
-- No real production SLA, autoscaling, or incident response process.
-- The default threshold is `0.5` and is not cost-optimized.
-- Drift monitoring is simplified and request-driven.
-- The dashboard is a local demo UI, not an authenticated production console.
+- Synthetic dataset, поэтому метрики не являются бизнес-бенчмарком.
+- Нет production SLA, autoscaling и incident process.
+- Threshold `0.5` не оптимизирован под стоимость ошибок.
+- Drift demo упрощен и запускается через API request.
+- Dashboard не является production-grade authenticated console.
 
 ## Roadmap
 
 - Probability calibration.
 - Cost-aware threshold optimization.
-- Scheduled monitoring jobs.
-- Evidently or custom HTML/PDF monitoring reports.
-- Deployment with managed database and environment-specific secrets.
+- Scheduled monitoring.
+- Evidently или custom HTML/PDF reports.
+- Deployment с managed database и environment-specific secrets.
