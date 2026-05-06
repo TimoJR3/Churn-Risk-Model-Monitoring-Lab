@@ -1,204 +1,286 @@
 # Churn Risk & Model Monitoring Lab
 
-Pet-project для портфолио junior Data Scientist / ML Engineer.
+Production-style ML portfolio project for churn prediction, inference logging,
+model monitoring, and a Streamlit dashboard.
 
-Проект показывает не только обучение ML-модели, а полный путь к
-production-like ML-сервису: API, база данных, dashboard, тесты,
-Docker Compose и документация.
+The project shows the full path from synthetic customer data to a working API:
+synthetic data -> preprocessing -> training -> artifacts -> FastAPI inference ->
+PostgreSQL prediction logs -> monitoring -> Streamlit dashboard.
 
-## Бизнес-задача
+## Business Problem
 
-Компания хочет заранее находить пользователей с высоким риском оттока.
-Если такой риск известен до ухода клиента, бизнес может предложить
-персональную коммуникацию, скидку или другой retention-сценарий.
+A subscription business wants to identify customers with elevated churn risk
+before they leave. Early risk signals let the business prioritize retention
+actions such as support outreach, product education, discounts, or account
+review.
 
-Цель проекта - построить сервис, который в следующих этапах будет:
+The model estimates churn probability from product usage, payment friction,
+support activity, plan type, and recency features.
 
-- загружать данные о пользователях;
-- обучать baseline-модель churn prediction;
-- отдавать прогноз через API;
-- сохранять предсказания в PostgreSQL;
-- отслеживать качество модели и drift;
-- показывать состояние модели в Streamlit dashboard.
+## What This Demonstrates
 
-## Что уже сделано в Stage 1
+This is built as a junior Data Scientist / ML Engineer portfolio project. It
+demonstrates:
 
-На текущем этапе создан качественный каркас проекта:
+- reproducible synthetic data generation;
+- feature engineering and preprocessing outside notebooks;
+- baseline model training with saved artifacts;
+- FastAPI inference with Pydantic request/response schemas;
+- prediction logging in PostgreSQL;
+- privacy-aware logging with hashed user identifiers;
+- model metadata, quality, and drift monitoring endpoints;
+- Streamlit dashboard that consumes the API;
+- pytest coverage, Docker Compose, and GitHub Actions CI.
 
-- FastAPI сервис с endpoint `GET /health`;
-- Streamlit dashboard-заготовка;
-- PostgreSQL в `docker-compose.yml`;
-- базовые pytest-тесты;
-- конфигурация через `.env`;
-- Dockerfile для API и dashboard;
-- структура папок под ML, monitoring, DB, schemas и services;
-- документация архитектуры в `docs/architecture.md`.
+## Architecture
 
-Обучение модели, drift detection, сохранение предсказаний и аналитика
-dashboard пока намеренно не реализованы. Это будет добавляться по этапам,
-чтобы проект оставался понятным и проверяемым.
+```text
+synthetic data
+    -> preprocessing
+    -> training
+    -> artifacts
+    -> FastAPI inference
+    -> PostgreSQL logs
+    -> monitoring
+    -> Streamlit dashboard
+```
 
-## Стек
+Main docs:
 
-- Python 3.11
-- FastAPI
-- Streamlit
-- pandas, NumPy, SciPy
-- scikit-learn
-- PostgreSQL
-- SQLAlchemy
-- Docker Compose
-- pytest
+- [Architecture](docs/architecture.md)
+- [API examples](docs/api_examples.md)
+- [Monitoring](docs/monitoring.md)
+- [Demo script](docs/demo_script.md)
+- [Data dictionary](docs/data_dictionary.md)
+- [Model card](docs/model_card.md)
 
-## Быстрый старт
+## Quickstart
 
-### Локальный запуск
-
-Создать виртуальное окружение и установить зависимости:
+### Windows PowerShell
 
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+pip install -r requirements.txt -r requirements-dev.txt
+Copy-Item .env.example .env
 ```
 
-Запустить API:
+Run the core workflow:
 
 ```powershell
+python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
+python -m app.ml.preprocessing --source csv --test-size 0.2
+python -m app.ml.training --source csv --n-splits 3
 uvicorn app.api.main:app --reload
 ```
 
-Проверить:
-
-- API health: http://localhost:8000/health
-- Swagger docs: http://localhost:8000/docs
-
-Запустить dashboard:
+In another terminal:
 
 ```powershell
 streamlit run dashboard/app.py
 ```
 
-Dashboard будет доступен здесь:
+### macOS / Linux
 
-- http://localhost:8501
-
-Запустить тесты:
-
-```powershell
-pytest -q
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env
 ```
 
-### Запуск через Docker Compose
+Run the core workflow:
+
+```bash
+python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
+python -m app.ml.preprocessing --source csv --test-size 0.2
+python -m app.ml.training --source csv --n-splits 3
+uvicorn app.api.main:app --reload
+```
+
+In another terminal:
+
+```bash
+streamlit run dashboard/app.py
+```
+
+### Docker Compose
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Windows PowerShell equivalent:
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Сервисы:
+Services:
 
-- API: http://localhost:8000
-- Dashboard: http://localhost:8501
-- PostgreSQL: localhost:5432
+- API: <http://localhost:8000>
+- Swagger UI: <http://localhost:8000/docs>
+- Dashboard: <http://localhost:8501>
+- PostgreSQL: `localhost:5432`
 
-## Структура проекта
+## Commands
 
-```text
-app/api          - HTTP endpoints и FastAPI wiring
-app/core         - настройки приложения и env-конфигурация
-app/db           - будущий слой работы с PostgreSQL
-app/models       - будущие ORM-модели
-app/schemas      - будущие Pydantic-схемы запросов и ответов
-app/services     - бизнес-логика между API, ML и DB
-app/ml           - будущие preprocessing, training и inference
-app/monitoring   - будущие проверки качества модели и drift
-dashboard        - Streamlit dashboard
-data/raw         - исходные данные
-data/processed   - подготовленные данные
-artifacts        - будущие модели и ML-артефакты
-tests            - automated tests
-docs             - документация проекта
+These commands match the `Makefile` targets.
+
+| Task | Make target | Command |
+| --- | --- | --- |
+| Install dependencies | `make install` | `pip install -r requirements.txt` |
+| Generate data | `make generate-data` | `python -m app.ml.generate_synthetic_data` |
+| EDA report | `make eda-report` | `python -m app.ml.eda` |
+| Preprocess data | `make prepare-data` | `python -m app.ml.preprocessing` |
+| Train model | `make train` | `python -m app.ml.training` |
+| Seed database | `make seed-db` | `python -m app.db.load_seed_data` |
+| Run API | `make run-api` | `uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000` |
+| Run dashboard | `make run-dashboard` | `streamlit run dashboard/app.py --server.port 8501` |
+| Run tests | `make test` | `pytest -q` |
+| Docker up | `make docker-up` | `docker compose up --build` |
+| Docker down | `make docker-down` | `docker compose down` |
+
+Common explicit commands:
+
+```bash
+python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
+python -m app.ml.preprocessing --source csv --test-size 0.2
+python -m app.ml.training --source csv --n-splits 3
+uvicorn app.api.main:app --reload
+streamlit run dashboard/app.py
+python -m pytest -q
+docker compose up --build
 ```
 
-## Что этот проект демонстрирует
+## API Endpoints
 
-Этот проект сделан как портфолио-кейс, который показывает навыки,
-важные для реальной DS/ML-инженерной работы:
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Service health check |
+| `POST` | `/predict` | Single-user churn prediction |
+| `POST` | `/predict/batch` | Batch churn prediction |
+| `GET` | `/model/metadata` | Model metrics and artifact status |
+| `GET` | `/predictions/recent` | Recent prediction logs without raw user IDs |
+| `GET` | `/monitoring/summary` | Prediction monitoring summary |
+| `POST` | `/monitoring/drift` | PSI drift check |
+| `POST` | `/monitoring/quality` | Quality metrics from labels and scores |
 
-- умение превращать ML-идею в сервис, а не только в notebook;
-- понимание слоистой архитектуры приложения;
-- базовую работу с API через FastAPI;
-- подготовку к хранению данных и предсказаний в PostgreSQL;
-- использование Docker Compose для локальной инфраструктуры;
-- привычку покрывать поведение тестами;
-- умение документировать проект для команды и ревьюера.
+## Example Curl Requests
+
+Health:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Single prediction:
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  --data @data/sample/predict_sample.json
+```
+
+Batch prediction:
+
+```bash
+curl -X POST http://localhost:8000/predict/batch \
+  -H "Content-Type: application/json" \
+  --data @data/sample/predict_batch_sample.json
+```
+
+Model metadata:
+
+```bash
+curl http://localhost:8000/model/metadata
+```
+
+Recent logs:
+
+```bash
+curl "http://localhost:8000/predictions/recent?limit=20"
+```
+
+Drift check:
+
+```bash
+curl -X POST http://localhost:8000/monitoring/drift \
+  -H "Content-Type: application/json" \
+  -d "{\"expected\":[1,2,3,4,5],\"actual\":[2,3,4,5,6],\"buckets\":5}"
+```
+
+Quality check:
+
+```bash
+curl -X POST http://localhost:8000/monitoring/quality \
+  -H "Content-Type: application/json" \
+  -d "{\"y_true\":[0,0,1,1],\"y_score\":[0.1,0.4,0.6,0.9],\"threshold\":0.5}"
+```
+
+More examples: [docs/api_examples.md](docs/api_examples.md).
+
+## Testing and CI
+
+Local checks:
+
+```bash
+python -m compileall app dashboard tests
+python -m ruff check .
+python -m pytest -q
+docker compose config
+docker build -t churn-lab:test .
+```
+
+GitHub Actions runs the same core checks on push and pull request to `main`.
+On tags matching `v*`, CI publishes a Docker image to GitHub Container Registry:
+
+- `ghcr.io/<owner>/<repo>:<tag>`
+- `ghcr.io/<owner>/<repo>:latest`
+
+## Model Monitoring
+
+The monitoring layer exposes:
+
+- prediction summary from logged inference results;
+- Population Stability Index (PSI) for numeric feature drift;
+- quality metrics from labels and prediction scores.
+
+PSI compares the expected distribution of a numeric feature with the actual
+distribution. In this project:
+
+- `stable`: PSI `< 0.1`;
+- `warning`: `0.1 <= PSI < 0.25`;
+- `drift`: PSI `>= 0.25`.
+
+Limitations: PSI is a univariate signal, bucket choices matter, and this demo
+does not include scheduled monitoring jobs or alerting.
+
+More details: [docs/monitoring.md](docs/monitoring.md).
+
+## Security and Privacy
+
+- No secrets are committed. Use `.env` locally and keep it ignored.
+- Prediction logs never store raw `user_id`; only a SHA-256 hash is stored.
+- The dataset is synthetic only.
+- Sample payloads are fake and contain no real personal data.
+
+## Limitations
+
+- Synthetic dataset; metrics are not business benchmarks.
+- No real production SLA, autoscaling, or incident response process.
+- The default threshold is `0.5` and is not cost-optimized.
+- Drift monitoring is simplified and request-driven.
+- The dashboard is a local demo UI, not an authenticated production console.
 
 ## Roadmap
 
-Следующие этапы:
-
-1. Добавить synthetic dataset, data model и seed-данные. `Done`
-2. Сделать EDA, preprocessing и feature engineering. `Done`
-3. Обучить baseline churn-модели и сохранить artifacts. `Done`
-4. Реализовать prediction endpoint.
-5. Сохранять prediction logs в PostgreSQL.
-6. Добавить model quality checks и drift monitoring.
-7. Расширить Streamlit dashboard метриками модели.
-8. Добавить GitHub Actions для тестов.
-
-## Генерация synthetic data
-
-Сгенерировать воспроизводимый датасет:
-
-```powershell
-python -m app.ml.generate_synthetic_data --n-users 2000 --seed 42
-```
-
-Команда создает:
-
-- `data/raw/synthetic_churn_dataset.csv`;
-- `data/processed/users.csv`;
-- `data/processed/user_features.csv`.
-
-Загрузить seed-данные в PostgreSQL после запуска Docker Compose:
-
-```powershell
-python -m app.db.load_seed_data
-```
-
-## EDA и подготовка данных
-
-Сгенерировать markdown EDA-отчет:
-
-```powershell
-python -m app.ml.eda --source csv
-```
-
-Подготовить train и validation datasets:
-
-```powershell
-python -m app.ml.preprocessing --source csv --test-size 0.2
-```
-
-Команда создает:
-
-- `data/processed/train_processed.csv`;
-- `data/processed/validation_processed.csv`;
-- `artifacts/preprocessor.joblib`.
-
-## Обучение baseline-моделей
-
-Обучить и сравнить baseline-модели:
-
-```powershell
-python -m app.ml.training --source csv --n-splits 5
-```
-
-Команда сохраняет:
-
-- `artifacts/trained_model.pkl`;
-- `artifacts/preprocessor.pkl`;
-- `artifacts/metrics.json`;
-- `artifacts/feature_importance.csv`;
-- `docs/model_card.md`.
+- Probability calibration.
+- Cost-aware threshold optimization.
+- Scheduled monitoring jobs.
+- Evidently or custom HTML/PDF monitoring reports.
+- Deployment with managed database and environment-specific secrets.

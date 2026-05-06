@@ -1,46 +1,73 @@
 # Architecture
 
-Stage 1 creates a simple layered scaffold. The goal is to keep the project
-easy to understand while leaving clear places for future ML service code.
+This project is a compact production-style churn prediction system. It keeps
+the ML workflow, API, database logging, monitoring, and dashboard in separate
+layers so each part can be tested independently.
+
+## Data Flow
 
 ```text
-                  +----------------------+
-                  | Streamlit dashboard  |
-                  +----------+-----------+
-                             |
-                             v
-+--------------+  +----------v-----------+
-| API clients  +->+ FastAPI application  |
-+--------------+  +----------+-----------+
-                             |
-                             v
-                  +----------+-----------+
-                  | Service layer        |
-                  +----------+-----------+
-                             |
-          +------------------+------------------+
-          |                  |                  |
-   +------v-----+     +------v-----+     +------v-----+
-   | ML layer   |     | DB layer   |     | Monitoring |
-   +------+-----+     +------+-----+     +------+-----+
-          |                  |                  |
-   +------v-----+     +------v-----+     +------v-----+
-   | Artifacts  |     | PostgreSQL |     | Reports    |
-   +------------+     +------------+     +------------+
+data/raw synthetic CSV
+    -> app.ml.preprocessing
+    -> processed train/validation CSVs
+    -> app.ml.training
+    -> artifacts/trained_model.pkl + preprocessor.pkl + metrics.json
+    -> FastAPI /predict and /predict/batch
+    -> PostgreSQL prediction_logs
+    -> monitoring endpoints
+    -> Streamlit dashboard
 ```
 
-## Layers
+## Runtime Components
 
-- `app/api`: HTTP endpoints and API wiring.
-- `app/core`: configuration and shared application settings.
-- `app/db`: database connections and repository code.
-- `app/models`: database table models.
-- `app/schemas`: request and response schemas.
-- `app/services`: business logic used by the API.
-- `app/ml`: training, preprocessing, and inference code.
-- `app/monitoring`: model quality and drift checks.
-- `dashboard`: Streamlit UI for project metrics.
-- `data`: raw and processed datasets.
-- `artifacts`: trained models and generated ML files.
-- `tests`: automated tests.
-- `docs`: project documentation.
+```text
+Client / Dashboard
+       |
+       v
+FastAPI app
+  |-- prediction router
+  |-- monitoring router
+  |-- Pydantic schemas
+       |
+       +--> ML inference layer
+       |      |-- loads cached artifacts
+       |      |-- applies feature engineering + preprocessor
+       |      +-- returns churn probability and risk band
+       |
+       +--> DB layer
+       |      |-- SQLAlchemy Core engine
+       |      |-- prediction_logs insert/read helpers
+       |
+       +--> Monitoring layer
+              |-- PSI drift checks
+              |-- prediction summary
+              +-- quality metrics
+```
+
+## Key Directories
+
+- `app/api`: FastAPI app and routers.
+- `app/schemas`: Pydantic request/response models.
+- `app/ml`: synthetic data, preprocessing, training, inference.
+- `app/db`: SQL schema and database helpers.
+- `app/monitoring`: pure monitoring functions.
+- `dashboard`: Streamlit UI and lightweight API client.
+- `data/sample`: demo request payloads.
+- `artifacts`: trained model, preprocessor, metrics, feature importance.
+- `tests`: unit and API tests.
+
+## Artifact Contract
+
+Prediction uses these files:
+
+- `artifacts/trained_model.pkl`
+- `artifacts/preprocessor.pkl`
+- `artifacts/metrics.json`
+
+If they are missing, `/predict` returns HTTP `503` with the command needed to
+train the model.
+
+## Privacy Boundary
+
+API requests may include `user_id` for demo purposes. The logging layer removes
+raw `user_id` from saved input features and stores only `user_id_hash`.
