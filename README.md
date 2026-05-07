@@ -1,14 +1,14 @@
 # Churn Risk & Model Monitoring Lab
 
-Портфолио-проект в формате production-like ML-сервиса: прогноз оттока
-пользователей, API-инференс, логирование предсказаний, мониторинг модели и
-Streamlit dashboard.
+Портфолио-проект в формате приближенного к продакшену ML-сервиса: прогноз
+оттока пользователей, API-инференс, логирование предсказаний, мониторинг
+модели и интерактивный Streamlit-dashboard.
 
 Проект показывает полный путь:
 
 ```text
-synthetic data -> preprocessing -> training -> artifacts -> FastAPI inference
--> PostgreSQL logs -> monitoring -> Streamlit dashboard
+синтетические данные -> подготовка признаков -> обучение -> артефакты
+-> FastAPI-инференс -> PostgreSQL-логи -> мониторинг -> Streamlit-dashboard
 ```
 
 ## Бизнес-задача
@@ -25,39 +25,79 @@ synthetic data -> preprocessing -> training -> artifacts -> FastAPI inference
 
 Проект ориентирован на junior Data Scientist / ML Engineer роль и показывает:
 
-- воспроизводимую генерацию synthetic dataset;
-- feature engineering и preprocessing вне notebook;
-- baseline training и сохранение model artifacts;
-- FastAPI inference с Pydantic-схемами;
-- batch prediction;
-- PostgreSQL prediction logs;
-- privacy-aware logging: raw `user_id` не сохраняется;
-- model metadata, PSI drift и quality monitoring endpoints;
-- Streamlit dashboard поверх API, полностью русифицированный для демо на РФ-рынке;
+- воспроизводимую генерацию синтетического датасета;
+- инженерную подготовку признаков вне ноутбука;
+- обучение базовых моделей и сохранение артефактов;
+- FastAPI-инференс с Pydantic-схемами;
+- одиночный и пакетный прогноз оттока;
+- PostgreSQL-логи предсказаний;
+- приватное логирование: исходный `user_id` не сохраняется;
+- метаданные модели, PSI drift и эндпоинты мониторинга качества;
+- Streamlit-dashboard поверх API, полностью русифицированный для демо на РФ-рынке;
 - pytest, Ruff, Docker Compose и GitHub Actions CI.
+
+## Живое демо
+
+Это не одна метрика в ноутбуке, а цельный мини-продукт: модель можно обучить,
+поднять через Docker Compose, отправить прогноз через API, сохранить лог в
+PostgreSQL и сразу увидеть результат в дашборде. Для работодателя это важный
+сигнал: проект показывает не только ML-часть, но и инженерную обвязку вокруг
+модели.
+
+### Одиночный прогноз
+
+Форма имитирует рабочий сценарий retention-команды: пользовательские признаки
+заполняются в интерфейсе, запрос уходит в FastAPI-эндпоинт `/predict`, а
+дашборд возвращает вероятность оттока, бинарный прогноз и уровень риска.
+
+![Одиночный прогноз риска оттока](docs/images/dashboard-predict.jpg)
+
+### Пакетный прогноз
+
+Пакетный режим показывает, что сервис умеет обрабатывать несколько клиентов за
+один запрос. Это полезно для ежедневного скоринга: загрузили пример JSON,
+запустили `/predict/batch`, получили таблицу результатов для приоритизации.
+
+![Пакетный прогноз оттока](docs/images/dashboard-batch.jpg)
+
+### Мониторинг предсказаний
+
+Мониторинг собирает последние логи предсказаний и превращает их в понятную
+операционную картину: сколько прогнозов сделано, какая средняя вероятность
+оттока, какая доля клиентов попала в высокий риск и как распределены уровни риска.
+
+![Мониторинг последних предсказаний](docs/images/dashboard-monitoring.jpg)
+
+### Информация о модели
+
+Вкладка модели показывает артефакты, порог классификации и метрики валидации.
+Так ревьюер сразу видит, что модель не является “черным ящиком”: у сервиса есть
+прозрачные метрики, версия артефактов и проверяемое состояние файлов.
+
+![Метаданные и метрики модели](docs/images/dashboard-model.jpg)
 
 ## Архитектура
 
 ```text
-data/raw synthetic CSV
+data/raw синтетический CSV
     -> app.ml.preprocessing
     -> data/processed train/validation CSV
     -> app.ml.training
     -> artifacts/trained_model.pkl + preprocessor.pkl + metrics.json
-    -> FastAPI /predict and /predict/batch
+    -> FastAPI /predict и /predict/batch
     -> PostgreSQL prediction_logs
-    -> monitoring endpoints
-    -> Streamlit dashboard
+    -> эндпоинты мониторинга
+    -> Streamlit-dashboard
 ```
 
 Документация:
 
-- [Architecture](docs/architecture.md)
-- [API examples](docs/api_examples.md)
-- [Monitoring](docs/monitoring.md)
-- [Demo script](docs/demo_script.md)
-- [Data dictionary](docs/data_dictionary.md)
-- [Model card](docs/model_card.md)
+- [Архитектура](docs/architecture.md)
+- [Примеры API-запросов](docs/api_examples.md)
+- [Мониторинг](docs/monitoring.md)
+- [Демо-сценарий](docs/demo_script.md)
+- [Словарь данных](docs/data_dictionary.md)
+- [Карточка модели](docs/model_card.md)
 
 ## Быстрый старт
 
@@ -125,8 +165,8 @@ streamlit run dashboard/app.py
 
 ### Docker Compose
 
-Docker Compose поднимает API, dashboard и PostgreSQL. В этом режиме
-`SAVE_PREDICTIONS=true` и prediction logs пишутся в базу.
+Docker Compose поднимает API, дашборд и PostgreSQL. В этом режиме
+`SAVE_PREDICTIONS=true` и логи предсказаний пишутся в базу.
 
 ```bash
 cp .env.example .env
@@ -159,29 +199,29 @@ docker compose up --build -d
 2. Убедитесь, что в верхней панели отображается `API онлайн`.
 3. На вкладке `Прогноз` нажмите `Рассчитать риск оттока`.
 4. Откройте `Пакетный прогноз` и нажмите `Запустить пакетный прогноз`.
-5. Откройте `Мониторинг` и проверьте summary по prediction logs.
-6. Откройте `Модель` и проверьте metadata и validation metrics.
+5. Откройте `Мониторинг` и проверьте сводку по логам предсказаний.
+6. Откройте `Модель` и проверьте метаданные и метрики валидации.
 
 Dashboard ориентирован на русскоязычного ревьюера: вкладки, кнопки,
-пояснения, ошибки, empty states и таблицы отображаются на русском языке.
+пояснения, ошибки, пустые состояния и таблицы отображаются на русском языке.
 
 ## Команды
 
 Команды соответствуют `Makefile`.
 
-| Задача | Make target | Команда |
+| Задача | Цель Makefile | Команда |
 | --- | --- | --- |
 | Установить зависимости | `make install` | `pip install -r requirements.txt` |
 | Сгенерировать данные | `make generate-data` | `python -m app.ml.generate_synthetic_data` |
 | EDA-отчет | `make eda-report` | `python -m app.ml.eda` |
-| Preprocessing | `make prepare-data` | `python -m app.ml.preprocessing` |
+| Подготовить признаки | `make prepare-data` | `python -m app.ml.preprocessing` |
 | Обучить модель | `make train` | `python -m app.ml.training` |
 | Загрузить seed в БД | `make seed-db` | `python -m app.db.load_seed_data` |
 | Запустить API | `make run-api` | `uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000` |
-| Запустить dashboard | `make run-dashboard` | `streamlit run dashboard/app.py --server.port 8501` |
+| Запустить дашборд | `make run-dashboard` | `streamlit run dashboard/app.py --server.port 8501` |
 | Запустить тесты | `make test` | `pytest -q` |
-| Docker up | `make docker-up` | `docker compose up --build` |
-| Docker down | `make docker-down` | `docker compose down` |
+| Запустить Docker Compose | `make docker-up` | `docker compose up --build` |
+| Остановить Docker Compose | `make docker-down` | `docker compose down` |
 
 Частые команды:
 
@@ -195,28 +235,28 @@ python -m pytest -q
 docker compose up --build
 ```
 
-## API endpoints
+## API-эндпоинты
 
 | Метод | Endpoint | Назначение |
 | --- | --- | --- |
 | `GET` | `/health` | Проверка состояния API |
-| `POST` | `/predict` | Prediction для одного пользователя |
-| `POST` | `/predict/batch` | Batch prediction |
-| `GET` | `/model/metadata` | Метрики модели и статус artifacts |
-| `GET` | `/predictions/recent` | Последние prediction logs без raw `user_id` |
-| `GET` | `/monitoring/summary` | Summary по prediction logs |
-| `POST` | `/monitoring/drift` | PSI drift check |
+| `POST` | `/predict` | Прогноз для одного пользователя |
+| `POST` | `/predict/batch` | Пакетный прогноз |
+| `GET` | `/model/metadata` | Метрики модели и статус артефактов |
+| `GET` | `/predictions/recent` | Последние логи предсказаний без исходного `user_id` |
+| `GET` | `/monitoring/summary` | Сводка по логам предсказаний |
+| `POST` | `/monitoring/drift` | Проверка PSI drift |
 | `POST` | `/monitoring/quality` | ROC-AUC, precision, recall, F1 |
 
 ## Curl-примеры
 
-Health:
+Проверка API:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-Single prediction:
+Одиночный прогноз:
 
 ```bash
 curl -X POST http://localhost:8000/predict \
@@ -224,7 +264,7 @@ curl -X POST http://localhost:8000/predict \
   --data @data/sample/predict_sample.json
 ```
 
-Batch prediction:
+Пакетный прогноз:
 
 ```bash
 curl -X POST http://localhost:8000/predict/batch \
@@ -232,19 +272,19 @@ curl -X POST http://localhost:8000/predict/batch \
   --data @data/sample/predict_batch_sample.json
 ```
 
-Metadata:
+Метаданные модели:
 
 ```bash
 curl http://localhost:8000/model/metadata
 ```
 
-Recent logs:
+Последние логи:
 
 ```bash
 curl "http://localhost:8000/predictions/recent?limit=20"
 ```
 
-Drift:
+Проверка drift:
 
 ```bash
 curl -X POST http://localhost:8000/monitoring/drift \
@@ -252,7 +292,7 @@ curl -X POST http://localhost:8000/monitoring/drift \
   -d "{\"expected\":[1,2,3,4,5],\"actual\":[2,3,4,5,6],\"buckets\":5}"
 ```
 
-Quality:
+Метрики качества:
 
 ```bash
 curl -X POST http://localhost:8000/monitoring/quality \
@@ -274,17 +314,17 @@ docker compose config
 docker build -t churn-lab:test .
 ```
 
-GitHub Actions запускает compile, Ruff, pytest, `docker compose config` и
-Docker build на push/pull request в `main`. На tag `v*` публикуется Docker
-image в GitHub Container Registry.
+GitHub Actions запускает компиляцию Python-модулей, Ruff, pytest,
+`docker compose config` и сборку Docker-образа при push/pull request в `main`.
+На теге `v*` Docker-образ публикуется в GitHub Container Registry.
 
-## Model monitoring
+## Мониторинг модели
 
-Monitoring layer включает:
+Слой мониторинга включает:
 
-- summary по prediction logs;
-- PSI для numeric feature drift;
-- quality metrics по labels и prediction scores.
+- сводку по логам предсказаний;
+- PSI для drift числовых признаков;
+- метрики качества по истинным меткам и скорингам модели.
 
 PSI показывает, насколько распределение фактических значений отличается от
 ожидаемого:
@@ -293,31 +333,31 @@ PSI показывает, насколько распределение факт
 - `warning`: `0.1 <= PSI < 0.25`;
 - `drift`: PSI `>= 0.25`.
 
-Ограничения PSI в этом проекте: это univariate signal, результат зависит от
-bucket-стратегии, нет scheduler jobs и alerting.
+Ограничения PSI в этом проекте: это одномерный сигнал, результат зависит от
+стратегии разбиения на интервалы, нет заданий по расписанию и оповещений.
 
 Подробнее: [docs/monitoring.md](docs/monitoring.md).
 
-## Security / Privacy
+## Безопасность и приватность
 
 - Секреты не хранятся в репозитории.
 - `.env` игнорируется git.
-- Prediction logs не сохраняют raw `user_id`; сохраняется только SHA-256 hash.
-- Данные synthetic, без реальных персональных данных.
-- Sample payloads вымышленные.
+- Логи предсказаний не сохраняют исходный `user_id`; сохраняется только SHA-256 hash.
+- Данные синтетические, без реальных персональных данных.
+- Примеры запросов вымышленные.
 
 ## Ограничения
 
-- Synthetic dataset, поэтому метрики не являются бизнес-бенчмарком.
-- Нет production SLA, autoscaling и incident process.
+- Синтетический датасет, поэтому метрики не являются бизнес-бенчмарком.
+- Нет продакшен-SLA, автоскейлинга и процесса реагирования на инциденты.
 - Threshold `0.5` не оптимизирован под стоимость ошибок.
-- Drift demo упрощен и запускается через API request.
-- Dashboard не является production-grade authenticated console.
+- Демо drift упрощено и запускается через API-запрос.
+- Dashboard не является полноценной защищенной консолью.
 
-## Roadmap
+## План развития
 
-- Probability calibration.
-- Cost-aware threshold optimization.
-- Scheduled monitoring.
-- Evidently или custom HTML/PDF reports.
-- Deployment с managed database и environment-specific secrets.
+- Калибровка вероятностей.
+- Подбор threshold с учетом стоимости ошибок.
+- Мониторинг по расписанию.
+- Evidently или кастомные HTML/PDF-отчеты.
+- Деплой с управляемой базой данных и секретами под разные окружения.
