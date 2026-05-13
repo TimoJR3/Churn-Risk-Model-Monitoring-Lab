@@ -1,6 +1,6 @@
 # Architecture
 
-This project is a compact production-style churn prediction system. It keeps
+This project is a compact churn prediction and model monitoring demo. It keeps
 the ML workflow, API, database logging, monitoring, and dashboard in separate
 layers so each part can be tested independently.
 

@@ -1,58 +1,136 @@
-# Model Card
+# Model Card: Churn Risk Baseline
 
-## Назначение модели
+## Model Purpose
 
-Baseline-модель оценивает вероятность churn для пользователя
-subscription-продукта. На этом этапе модель используется только как
-offline artifact: API inference еще не реализован.
+This model estimates churn probability for a synthetic subscription-product
+user. It is used in this repository as a reproducible churn modeling and model
+monitoring demo for DS portfolio review.
 
-## Данные
+The score should be interpreted as a risk signal for analysis and retention
+prioritization, not as an automated business decision.
 
-Источник данных: synthetic churn dataset.
+## Target
 
-Target: `churn`.
+- Target column: `churn`
+- Type: binary classification
+- Meaning: `1` means the user churned, `0` means the user did not churn
 
-Используются поведенческие, платежные и продуктовые признаки:
-активные дни, сессии, failed payments, обращения в поддержку,
-feature usage score, давность последнего логина и engineered features.
+## Input Features
 
-## Кандидаты
+Raw input fields:
 
-- Logistic Regression
-- Random Forest
+- `signup_date`
+- `country`
+- `plan_type`
+- `monthly_fee`
+- `days_active_last_30`
+- `sessions_last_30`
+- `support_tickets_last_30`
+- `payments_failed_last_90`
+- `avg_session_duration`
+- `feature_usage_score`
+- `last_login_days_ago`
+
+`user_id` may be accepted by the API for demo logging, but it is not used as a
+model feature.
+
+Engineered features:
+
+- `activity_score`
+- `payment_risk_score`
+- `engagement_level`
+- `days_since_signup`
+- `usage_per_session`
+- `support_intensity`
+
+## Modeling Approach
+
+Candidate models:
+
+- Logistic Regression with balanced class weights
+- Random Forest with balanced class weights
 - HistGradientBoostingClassifier
 
-Модели сравнивались через StratifiedKFold cross-validation.
-Главная метрика выбора: ROC-AUC. F1 использовался как tie-breaker.
+Preprocessing:
 
-## Лучшая модель
+- numeric median imputation;
+- numeric standard scaling;
+- categorical most-frequent imputation;
+- one-hot encoding for categorical features;
+- `user_id` and `signup_date` are dropped before model fitting.
 
-Best model: `random_forest`
+## Validation Method
 
-Validation metrics:
+The project uses:
 
+- stratified train/validation split, default `test_size=0.2`;
+- `random_state=42` for reproducibility;
+- `StratifiedKFold` cross-validation on the training split;
+- ROC-AUC as the primary model-selection metric;
+- F1 as a secondary tie-breaker.
+
+## Current Validation Metrics
+
+Current saved artifact metrics:
+
+- Best model: `random_forest`
 - ROC-AUC: `0.8408`
 - F1: `0.5072`
 - Precision: `0.3846`
 - Recall: `0.7447`
+- Confusion matrix: `[[297, 56], [12, 35]]`
 
-Confusion matrix:
+These numbers come from synthetic data and should not be treated as business
+benchmarks.
 
-```text
-[[297, 56], [12, 35]]
-```
+## Inference
 
-## Почему не accuracy
+The trained model is saved to `artifacts/trained_model.pkl`; the preprocessing
+pipeline is saved to `artifacts/preprocessor.pkl`. FastAPI endpoints load these
+artifacts with caching and do not retrain during requests.
 
-Churn обычно несбалансирован: ушедших пользователей меньше, чем
-оставшихся. Модель, которая почти всегда предсказывает "no churn",
-может получить высокую accuracy, но будет бесполезна для retention.
-Поэтому важнее смотреть ROC-AUC, recall, precision и F1.
+The default classification threshold is `0.5`, configurable through
+`PREDICTION_THRESHOLD`.
 
-## Ограничения
+Risk bands:
 
-- Данные synthetic, поэтому результаты нельзя считать бизнес-бенчмарком.
-- Threshold зафиксирован на `0.5` и пока не оптимизирован под стоимость
-  ошибок.
-- Нет проверки temporal split, потому что датасет является snapshot.
-- Drift monitoring и online inference будут добавлены на следующих этапах.
+- `low`: probability `< 0.35`
+- `medium`: `0.35 <= probability < 0.65`
+- `high`: probability `>= 0.65`
+
+## Monitoring Signals
+
+Implemented monitoring signals:
+
+- prediction count;
+- average churn probability;
+- high-risk share;
+- risk-band distribution;
+- PSI drift check for a numeric feature;
+- optional quality metrics from labels and scores.
+
+PSI thresholds used in the demo:
+
+- `stable`: PSI `< 0.1`
+- `warning`: `0.1 <= PSI < 0.25`
+- `drift`: PSI `>= 0.25`
+
+## Known Limitations
+
+- Synthetic data only; no real customer behavior is modeled.
+- No temporal split; the dataset is a generated snapshot.
+- Threshold is not optimized against business costs.
+- No probability calibration.
+- Monitoring is request-driven and simplified.
+- No model registry, scheduled retraining, or alert routing.
+- Dashboard is a local demo, not an authenticated operational console.
+
+## Ethical and Product Risks
+
+- Churn scores can be misused if treated as a final decision instead of a risk
+  signal.
+- Retention actions should be reviewed for fairness and user experience.
+- Synthetic data does not capture real demographic, behavioral, or market
+  biases.
+- If adapted to real data, raw personal data should not be logged, and feature
+  selection should be reviewed for privacy and fairness concerns.
