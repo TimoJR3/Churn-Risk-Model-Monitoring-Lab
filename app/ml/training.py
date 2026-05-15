@@ -181,26 +181,27 @@ def save_model_card(metrics: dict[str, object]) -> None:
     best_model = metrics["best_model"]
     validation = metrics["validation_metrics"]
 
-    text = f"""# Model Card
+    text = f"""# Model Card: churn-модель
 
-## Model Purpose
+## Назначение модели
 
-This model estimates churn probability for a synthetic subscription-product
-user. It supports the FastAPI online and batch scoring demo in this repository.
+Модель оценивает вероятность оттока пользователя подписочного продукта на
+синтетическом датасете. В проекте она используется как демонстрация DS-процесса:
+данные, preprocessing, обучение, validation, inference API и model monitoring.
 
-## Target
+Скор модели следует трактовать как сигнал риска, а не как автоматическое
+бизнес-решение.
 
-- Target column: `churn`
-- Type: binary classification
-- Meaning: `1` means the user churned, `0` means the user did not churn
+## Целевая переменная
 
-## Input Features
+- `churn`
+- Тип задачи: binary classification
+- `1`: пользователь ушёл
+- `0`: пользователь не ушёл
 
-The model uses product activity, payment friction, support activity, plan
-metadata, and engineered engagement features. Raw `user_id` is not used as a
-model feature.
+## Входные признаки
 
-Raw fields:
+Raw input fields:
 
 - `signup_date`
 - `country`
@@ -214,6 +215,9 @@ Raw fields:
 - `feature_usage_score`
 - `last_login_days_ago`
 
+`user_id` может приходить в API payload для демонстрационного логирования, но
+не используется как model feature.
+
 Engineered features:
 
 - `activity_score`
@@ -223,21 +227,21 @@ Engineered features:
 - `usage_per_session`
 - `support_intensity`
 
-## Modeling Approach
+## Подход к моделированию
 
-Candidate models:
+Кандидаты:
 
-- Logistic Regression
-- Random Forest
+- Logistic Regression с `class_weight="balanced"`
+- Random Forest с `class_weight="balanced"`
 - HistGradientBoostingClassifier
 
-## Validation Method
+## Метод валидации
 
-The project uses a stratified train/validation split and StratifiedKFold
-cross-validation on the training split. ROC-AUC is the primary selection metric;
-F1 is used as a secondary signal.
+Используется stratified train/validation split и StratifiedKFold
+cross-validation на train-части. ROC-AUC — основная метрика выбора модели, F1 —
+дополнительный сигнал.
 
-## Current Model
+## Метрики качества
 
 Best model: `{best_model}`
 
@@ -256,37 +260,40 @@ Confusion matrix:
 
 ## Inference
 
-The trained model is saved to `artifacts/trained_model.pkl`; the preprocessing
-pipeline is saved to `artifacts/preprocessor.pkl`. FastAPI endpoints load these
-artifacts with caching and do not retrain during requests.
+Артефакты:
 
-The default classification threshold is `0.5`, configurable through
-`PREDICTION_THRESHOLD`.
+- `artifacts/trained_model.pkl`
+- `artifacts/preprocessor.pkl`
+- `artifacts/metrics.json`
 
-## Monitoring Signals
+FastAPI endpoints загружают artifacts через cache и не переобучают модель во
+время request.
 
-- Prediction volume
-- Average churn probability
-- High-risk share
-- Risk-band distribution
-- PSI drift check for numeric features
-- Label-based quality metrics when labels are available
+## Сигналы мониторинга
 
-## Known Limitations
+- Количество prediction logs
+- Средняя вероятность оттока
+- Доля high-risk прогнозов
+- Распределение `risk_band`
+- PSI drift check для числового признака
+- Quality metrics по labels и scores, если labels доступны
 
-- Synthetic data only
-- No temporal validation split
-- Threshold is not cost-optimized
-- No probability calibration
-- Monitoring is request-driven and simplified
-- No scheduled retraining, alert routing, or model registry
+## Ограничения
 
-## Ethical and Product Risks
+- Данные синтетические
+- Нет реального пользовательского трафика
+- Нет temporal validation split
+- Threshold не оптимизирован под business cost
+- Нет probability calibration
+- Monitoring request-driven и демонстрационный
+- Нет scheduled retraining, alert routing или model registry
 
-- Churn scores should be treated as risk signals, not final decisions.
-- Retention actions should be reviewed for fairness and user experience.
-- Synthetic data does not capture real demographic, behavioral, or market bias.
-- If adapted to real data, raw personal data should not be logged.
+## Риски неправильного использования
+
+- Churn score нельзя использовать как единственное основание для решения.
+- Retention-действия нужно проверять на уместность и fairness.
+- Синтетические данные не отражают реальные поведенческие и рыночные сдвиги.
+- При переносе на реальные данные нельзя логировать raw персональные данные.
 """
     MODEL_CARD_PATH.write_text(text, encoding="utf-8")
 

@@ -105,3 +105,39 @@ def test_monitoring_summary_uses_fake_logs(
     )
     assert payload["high_risk_share"] == pytest.approx(1 / 3)
     assert payload["risk_band_counts"] == {"low": 1, "medium": 1, "high": 1}
+
+
+def test_monitoring_drift_endpoint_returns_psi_status(client: TestClient) -> None:
+    response = client.post(
+        "/monitoring/drift",
+        json={
+            "expected": [1, 2, 3, 4, 5] * 5,
+            "actual": [1, 2, 3, 4, 5] * 5,
+            "buckets": 5,
+        },
+    )
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["psi"] == pytest.approx(0.0)
+    assert payload["status"] == "stable"
+    assert payload["expected_count"] == 25
+    assert payload["actual_count"] == 25
+
+
+def test_monitoring_quality_endpoint_returns_metrics(client: TestClient) -> None:
+    response = client.post(
+        "/monitoring/quality",
+        json={
+            "y_true": [0, 0, 1, 1],
+            "y_score": [0.1, 0.3, 0.7, 0.9],
+            "threshold": 0.5,
+        },
+    )
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["roc_auc"] == pytest.approx(1.0)
+    assert payload["precision"] == pytest.approx(1.0)
+    assert payload["recall"] == pytest.approx(1.0)
+    assert payload["f1"] == pytest.approx(1.0)

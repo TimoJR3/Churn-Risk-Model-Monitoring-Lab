@@ -1,45 +1,47 @@
-# Monitoring
+# Мониторинг модели
 
-The monitoring layer is intentionally small and testable. It exposes pure
-functions in `app/monitoring` and API endpoints in `app/api/routers`.
+Monitoring layer в проекте специально сделан небольшим и тестируемым. Чистые
+функции находятся в `app/monitoring`, API endpoints — в `app/api/routers`.
 
-## Prediction Summary
+Это демо мониторинга модели, а не промышленная monitoring platform.
 
-`GET /monitoring/summary` reads recent prediction logs and returns:
+## Prediction summary
 
-- `total_predictions`
-- `average_probability`
-- `high_risk_share`
-- `risk_band_counts`
+`GET /monitoring/summary` читает последние prediction logs и возвращает:
 
-This is useful for a quick operational view of how many users are being scored
-and whether the score distribution is shifting toward high risk.
+- `total_predictions`;
+- `average_probability`;
+- `high_risk_share`;
+- `risk_band_counts`.
 
-## Population Stability Index
+Этот endpoint показывает, сколько пользователей было просчитано, какая средняя
+вероятность оттока и как распределены уровни риска.
 
-`POST /monitoring/drift` calculates Population Stability Index (PSI) for one
-numeric feature.
+## PSI drift
 
-PSI compares the distribution of expected values with actual values:
+`POST /monitoring/drift` считает Population Stability Index для одного
+числового признака.
 
-- very small PSI means the distributions are similar;
-- larger PSI suggests feature distribution drift;
-- PSI is univariate and should be interpreted with context.
+PSI сравнивает expected distribution и actual distribution:
 
-Status thresholds:
+- маленький PSI означает, что распределения похожи;
+- большой PSI указывает на возможный feature drift;
+- PSI одномерный и требует контекста.
 
-| PSI | Status |
+Пороги:
+
+| PSI | Статус |
 | --- | --- |
 | `< 0.1` | `stable` |
 | `0.1 <= PSI < 0.25` | `warning` |
 | `>= 0.25` | `drift` |
 
-The implementation handles NaN values, constant arrays, and zero bucket counts
-with a small epsilon.
+Реализация обрабатывает `NaN`, константные массивы и нулевые bin counts через
+малый epsilon.
 
-## Quality Metrics
+## Quality metrics
 
-`POST /monitoring/quality` accepts labels and prediction scores and returns:
+`POST /monitoring/quality` принимает labels и prediction scores:
 
 - ROC-AUC;
 - precision;
@@ -48,13 +50,13 @@ with a small epsilon.
 - sample count;
 - positive count.
 
-If labels are missing or `y_true` contains a single class, the endpoint returns
-`roc_auc: null` instead of failing.
+Если `y_true` содержит один класс, endpoint возвращает `roc_auc: null`, а не
+падает с traceback.
 
-## Limitations
+## Ограничения
 
-- Monitoring is request-driven; there is no scheduler yet.
-- PSI is calculated per feature and does not detect multivariate drift.
-- There is no alert routing.
-- No production-grade model registry is included.
-- The dataset is synthetic, so thresholds are illustrative.
+- Monitoring запускается request-driven, scheduler отсутствует.
+- PSI считается по одному признаку и не ловит все multivariate shifts.
+- Нет alert routing.
+- Нет model registry.
+- Данные синтетические, thresholds демонстрационные.

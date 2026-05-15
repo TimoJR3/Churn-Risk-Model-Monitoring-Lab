@@ -1,21 +1,23 @@
-# Model Card: Churn Risk Baseline
+# Model Card: churn-модель
 
-## Model Purpose
+## Назначение модели
 
-This model estimates churn probability for a synthetic subscription-product
-user. It is used in this repository as a reproducible churn modeling and model
-monitoring demo for DS portfolio review.
+Модель оценивает вероятность оттока пользователя подписочного продукта на
+синтетическом датасете. В проекте она используется как демонстрация полного
+DS-процесса: данные, preprocessing, обучение, validation, inference API и
+model monitoring.
 
-The score should be interpreted as a risk signal for analysis and retention
-prioritization, not as an automated business decision.
+Скор модели следует трактовать как сигнал риска для анализа и приоритизации
+retention-действий. Это не автоматическое бизнес-решение.
 
-## Target
+## Целевая переменная
 
-- Target column: `churn`
-- Type: binary classification
-- Meaning: `1` means the user churned, `0` means the user did not churn
+- `churn`
+- Тип задачи: binary classification
+- `1`: пользователь ушёл
+- `0`: пользователь не ушёл
 
-## Input Features
+## Входные признаки
 
 Raw input fields:
 
@@ -31,8 +33,8 @@ Raw input fields:
 - `feature_usage_score`
 - `last_login_days_ago`
 
-`user_id` may be accepted by the API for demo logging, but it is not used as a
-model feature.
+`user_id` может приходить в API payload для демонстрационного логирования, но
+не используется как model feature.
 
 Engineered features:
 
@@ -43,54 +45,58 @@ Engineered features:
 - `usage_per_session`
 - `support_intensity`
 
-## Modeling Approach
+## Подход к моделированию
 
-Candidate models:
+Кандидаты:
 
-- Logistic Regression with balanced class weights
-- Random Forest with balanced class weights
+- Logistic Regression с `class_weight="balanced"`
+- Random Forest с `class_weight="balanced"`
 - HistGradientBoostingClassifier
 
 Preprocessing:
 
-- numeric median imputation;
-- numeric standard scaling;
-- categorical most-frequent imputation;
-- one-hot encoding for categorical features;
-- `user_id` and `signup_date` are dropped before model fitting.
+- median imputation для числовых признаков;
+- standard scaling для числовых признаков;
+- most-frequent imputation для категориальных признаков;
+- one-hot encoding для категориальных признаков;
+- `user_id` и `signup_date` удаляются перед обучением.
 
-## Validation Method
+## Метод валидации
 
-The project uses:
+Используется:
 
-- stratified train/validation split, default `test_size=0.2`;
-- `random_state=42` for reproducibility;
-- `StratifiedKFold` cross-validation on the training split;
-- ROC-AUC as the primary model-selection metric;
-- F1 as a secondary tie-breaker.
+- stratified train/validation split;
+- default `test_size=0.2`;
+- `random_state=42` для воспроизводимости;
+- `StratifiedKFold` cross-validation на train-части;
+- ROC-AUC как основная метрика выбора модели;
+- F1 как дополнительный сигнал.
 
-## Current Validation Metrics
+## Метрики качества
 
-Current saved artifact metrics:
+Текущие сохранённые метрики из `artifacts/metrics.json`:
 
-- Best model: `random_forest`
+- best model: `random_forest`
 - ROC-AUC: `0.8408`
 - F1: `0.5072`
-- Precision: `0.3846`
-- Recall: `0.7447`
-- Confusion matrix: `[[297, 56], [12, 35]]`
+- precision: `0.3846`
+- recall: `0.7447`
+- confusion matrix: `[[297, 56], [12, 35]]`
 
-These numbers come from synthetic data and should not be treated as business
-benchmarks.
+Эти метрики получены на synthetic dataset и не являются бизнес-бенчмарком.
 
 ## Inference
 
-The trained model is saved to `artifacts/trained_model.pkl`; the preprocessing
-pipeline is saved to `artifacts/preprocessor.pkl`. FastAPI endpoints load these
-artifacts with caching and do not retrain during requests.
+Артефакты:
 
-The default classification threshold is `0.5`, configurable through
-`PREDICTION_THRESHOLD`.
+- `artifacts/trained_model.pkl`
+- `artifacts/preprocessor.pkl`
+- `artifacts/metrics.json`
+
+FastAPI endpoints загружают artifacts через cache и не переобучают модель во
+время request.
+
+Default threshold: `0.5`, настраивается через `PREDICTION_THRESHOLD`.
 
 Risk bands:
 
@@ -98,39 +104,51 @@ Risk bands:
 - `medium`: `0.35 <= probability < 0.65`
 - `high`: probability `>= 0.65`
 
-## Monitoring Signals
+## Сигналы мониторинга
 
-Implemented monitoring signals:
+Реализованы:
 
-- prediction count;
-- average churn probability;
-- high-risk share;
-- risk-band distribution;
-- PSI drift check for a numeric feature;
-- optional quality metrics from labels and scores.
+- количество prediction logs;
+- средняя вероятность оттока;
+- доля high-risk прогнозов;
+- распределение `risk_band`;
+- PSI drift check для числового признака;
+- quality metrics по labels и scores, если labels доступны.
 
-PSI thresholds used in the demo:
+PSI thresholds:
 
 - `stable`: PSI `< 0.1`
 - `warning`: `0.1 <= PSI < 0.25`
 - `drift`: PSI `>= 0.25`
 
-## Known Limitations
+## Ограничения
 
-- Synthetic data only; no real customer behavior is modeled.
-- No temporal split; the dataset is a generated snapshot.
-- Threshold is not optimized against business costs.
-- No probability calibration.
-- Monitoring is request-driven and simplified.
-- No model registry, scheduled retraining, or alert routing.
-- Dashboard is a local demo, not an authenticated operational console.
+- Данные синтетические.
+- Нет реального пользовательского трафика.
+- Нет temporal split.
+- Threshold не оптимизирован под business cost.
+- Нет probability calibration.
+- Monitoring request-driven и демонстрационный.
+- Нет model registry, scheduled retraining и alert routing.
 
-## Ethical and Product Risks
+## Риски неправильного использования
 
-- Churn scores can be misused if treated as a final decision instead of a risk
-  signal.
-- Retention actions should be reviewed for fairness and user experience.
-- Synthetic data does not capture real demographic, behavioral, or market
-  biases.
-- If adapted to real data, raw personal data should not be logged, and feature
-  selection should be reviewed for privacy and fairness concerns.
+- Churn score нельзя использовать как единственное основание для решения по
+  клиенту.
+- Retention-кампании на основе скоринга нужно проверять на качество,
+  уместность и fairness.
+- Синтетические данные не отражают реальные поведенческие, рыночные и
+  демографические сдвиги.
+- При переносе на реальные данные нельзя логировать raw персональные данные;
+  признаки нужно проверять на privacy и fairness risks.
+
+## Возможные улучшения
+
+- Probability calibration.
+- Cost-aware threshold optimization.
+- Temporal validation / out-of-time holdout.
+- Monitoring по top features из feature importance.
+- Scheduled monitoring reports.
+- Experiment tracking.
+- Model registry metadata.
+- Delayed-label quality tracking.

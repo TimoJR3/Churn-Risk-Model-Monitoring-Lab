@@ -1,14 +1,14 @@
-# API Examples
+# API-примеры
 
-Assume the API runs at `http://localhost:8000`.
+Примеры предполагают, что API запущен на `http://localhost:8000`.
 
-## Health
+## Health check
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-## Single Prediction
+## Одиночный прогноз
 
 ```bash
 curl -X POST http://localhost:8000/predict \
@@ -16,7 +16,7 @@ curl -X POST http://localhost:8000/predict \
   --data @data/sample/predict_sample.json
 ```
 
-Response shape:
+Форма ответа:
 
 ```json
 {
@@ -30,7 +30,7 @@ Response shape:
 }
 ```
 
-## Batch Prediction
+## Batch scoring
 
 ```bash
 curl -X POST http://localhost:8000/predict/batch \
@@ -38,28 +38,28 @@ curl -X POST http://localhost:8000/predict/batch \
   --data @data/sample/predict_batch_sample.json
 ```
 
-## Model Metadata
+## Metadata модели
 
 ```bash
 curl http://localhost:8000/model/metadata
 ```
 
-## Recent Prediction Logs
+## Последние prediction logs
 
 ```bash
 curl "http://localhost:8000/predictions/recent?limit=20"
 ```
 
-The response does not include raw `user_id`; it returns `user_id_hash` when an
-identifier was provided.
+Ответ не содержит raw `user_id`; если идентификатор был передан, возвращается
+`user_id_hash`.
 
-## Monitoring Summary
+## Monitoring summary
 
 ```bash
 curl http://localhost:8000/monitoring/summary
 ```
 
-## Drift Check
+## PSI drift check
 
 ```bash
 curl -X POST http://localhost:8000/monitoring/drift \
@@ -67,7 +67,7 @@ curl -X POST http://localhost:8000/monitoring/drift \
   -d "{\"expected\":[1,2,3,4,5],\"actual\":[2,3,4,5,6],\"buckets\":5}"
 ```
 
-## Quality Metrics
+## Quality metrics
 
 ```bash
 curl -X POST http://localhost:8000/monitoring/quality \

@@ -1,27 +1,28 @@
-# Architecture
+# Архитектура
 
-This project is a compact churn prediction and model monitoring demo. It keeps
-the ML workflow, API, database logging, monitoring, and dashboard in separate
-layers so each part can be tested independently.
+Проект устроен как компактный демонстрационный ML-сервис для churn prediction и
+model monitoring. ML pipeline, API, database logging, monitoring logic и
+dashboard разделены по слоям, чтобы каждую часть можно было тестировать
+отдельно.
 
-## Data Flow
+## Поток данных
 
 ```text
-data/raw synthetic CSV
+data/raw/synthetic_churn_dataset.csv
     -> app.ml.preprocessing
-    -> processed train/validation CSVs
+    -> data/processed train/validation CSV
     -> app.ml.training
     -> artifacts/trained_model.pkl + preprocessor.pkl + metrics.json
-    -> FastAPI /predict and /predict/batch
+    -> FastAPI /predict и /predict/batch
     -> PostgreSQL prediction_logs
     -> monitoring endpoints
     -> Streamlit dashboard
 ```
 
-## Runtime Components
+## Runtime-компоненты
 
 ```text
-Client / Dashboard
+Dashboard / API client
        |
        v
 FastAPI app
@@ -30,13 +31,13 @@ FastAPI app
   |-- Pydantic schemas
        |
        +--> ML inference layer
-       |      |-- loads cached artifacts
-       |      |-- applies feature engineering + preprocessor
-       |      +-- returns churn probability and risk band
+       |      |-- загружает cached artifacts
+       |      |-- применяет feature engineering + preprocessor
+       |      +-- возвращает probability, prediction, risk band
        |
        +--> DB layer
        |      |-- SQLAlchemy Core engine
-       |      |-- prediction_logs insert/read helpers
+       |      |-- insert/read helpers для prediction_logs
        |
        +--> Monitoring layer
               |-- PSI drift checks
@@ -44,30 +45,30 @@ FastAPI app
               +-- quality metrics
 ```
 
-## Key Directories
+## Основные папки
 
-- `app/api`: FastAPI app and routers.
+- `app/api`: FastAPI app и routers.
 - `app/schemas`: Pydantic request/response models.
 - `app/ml`: synthetic data, preprocessing, training, inference.
-- `app/db`: SQL schema and database helpers.
-- `app/monitoring`: pure monitoring functions.
-- `dashboard`: Streamlit UI and lightweight API client.
+- `app/db`: SQL schema и helpers для prediction logs.
+- `app/monitoring`: чистые функции мониторинга.
+- `dashboard`: Streamlit UI и лёгкий API client.
 - `data/sample`: demo request payloads.
 - `artifacts`: trained model, preprocessor, metrics, feature importance.
-- `tests`: unit and API tests.
+- `tests`: unit и API tests.
 
-## Artifact Contract
+## Artifact contract
 
-Prediction uses these files:
+Inference использует:
 
 - `artifacts/trained_model.pkl`
 - `artifacts/preprocessor.pkl`
 - `artifacts/metrics.json`
 
-If they are missing, `/predict` returns HTTP `503` with the command needed to
-train the model.
+Если artifacts отсутствуют, `/predict` возвращает HTTP 503 с командой для
+обучения модели. API не переобучает модель во время request.
 
-## Privacy Boundary
+## Privacy boundary
 
-API requests may include `user_id` for demo purposes. The logging layer removes
-raw `user_id` from saved input features and stores only `user_id_hash`.
+API payload может содержать `user_id` для демо. Logging layer удаляет raw
+`user_id` из сохранённых input features и пишет только `user_id_hash`.
