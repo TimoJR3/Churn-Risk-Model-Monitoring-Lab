@@ -1,0 +1,14 @@
+feature,psi,status
+monthly_fee,0.0437,stable
+days_active_last_30,0.04,stable
+last_login_days_ago,0.0345,stable
+avg_session_duration,0.0328,stable
+days_since_signup,0.0192,stable
+sessions_last_30,0.0183,stable
+activity_score,0.0126,stable
+feature_usage_score,0.0111,stable
+usage_per_session,0.0081,stable
+support_tickets_last_30,0.0066,stable
+support_intensity,0.0044,stable
+payments_failed_last_90,0.0008,stable
+payment_risk_score,0.0008,stable
